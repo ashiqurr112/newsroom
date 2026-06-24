@@ -20,8 +20,8 @@ class FeedRepository {
       'url': 'https://www.ft.com/opinion?format=rss',
       'region': 'Europe',
     },
-    'The Times': {
-      'url': 'https://www.thetimes.com/opinion/rss',
+    'The Independent': {
+      'url': 'https://www.independent.co.uk/voices/rss',
       'region': 'Europe',
     },
     'The Guardian': {
@@ -36,8 +36,8 @@ class FeedRepository {
       'url': 'https://www.project-syndicate.org/rss',
       'region': 'Global',
     },
-    'Reuters': {
-      'url': 'https://www.reuters.com/arc/outboundfeeds/news-rss/?outputType=xml',
+    'The Conversation': {
+      'url': 'https://theconversation.com/global/articles.atom',
       'region': 'Global',
     },
     'BBC': {
@@ -45,7 +45,7 @@ class FeedRepository {
       'region': 'Europe',
     },
     'Al Jazeera': {
-      'url': 'https://www.aljazeera.com/xml/rss/opinion.xml',
+      'url': 'https://www.aljazeera.com/xml/rss/all.xml',
       'region': 'South Asia',
     },
   };

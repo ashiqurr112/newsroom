@@ -33,6 +33,7 @@ class ProfileView extends StatelessWidget {
       case 'Financial Times':
         return const Color(0xFF381519);
       case 'The Times':
+      case 'The Independent':
         return const Color(0xFF0F1E36);
       case 'The Guardian':
         return const Color(0xFF005689);
@@ -41,6 +42,7 @@ class ProfileView extends StatelessWidget {
       case 'Project Syndicate':
         return const Color(0xFF0E5B5B);
       case 'Reuters':
+      case 'The Conversation':
         return const Color(0xFFDF5800);
       case 'BBC':
         return const Color(0xFF900B0B);
