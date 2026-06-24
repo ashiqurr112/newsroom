@@ -1,5 +1,7 @@
 import 'package:xml/xml.dart';
 import 'package:http/http.dart' as http;
+import 'package:html/parser.dart' show parse;
+import 'package:html/dom.dart';
 import '../models/article.dart';
 
 class FeedService {
@@ -234,5 +236,111 @@ class FeedService {
 
   String _generateId(String link) {
     return link.hashCode.toString();
+  }
+
+  Future<List<String>> fetchFullArticle(String source, String url) async {
+    final Map<String, String> headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.5',
+    };
+
+    if (source == 'The New York Times') {
+      headers['User-Agent'] = 'Mozilla/5.0 (compatible; Google-InspectionTool/1.0)';
+    } else if (source == 'The Wall Street Journal') {
+      headers['Referer'] = 'https://www.drudgereport.com/';
+      headers['User-Agent'] = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
+    } else if (source == 'Financial Times') {
+      headers['Referer'] = 'https://www.google.com/';
+      headers['User-Agent'] = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
+    } else if (source == 'The Economist') {
+      headers['User-Agent'] = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.103 Mobile Safari/537.36 Liskov';
+    } else if (source == 'Project Syndicate') {
+      headers['User-Agent'] = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
+      headers['Referer'] = 'https://www.google.com/';
+      headers['X-Forwarded-For'] = '66.249.66.1';
+    }
+
+    try {
+      final response = await _client.get(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) {
+        final paragraphs = extractParagraphs(response.body, source);
+        if (paragraphs.length >= 3) {
+          return paragraphs;
+        }
+      }
+      
+      // Fallback: If it fails or returns too few paragraphs (paywalled), try Google Web Cache!
+      final cacheUrl = 'https://webcache.googleusercontent.com/search?q=cache:$url';
+      final cacheResponse = await _client.get(Uri.parse(cacheUrl), headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      }).timeout(const Duration(seconds: 10));
+      
+      if (cacheResponse.statusCode == 200) {
+        final paragraphs = extractParagraphs(cacheResponse.body, source);
+        if (paragraphs.length >= 3) {
+          return paragraphs;
+        }
+      }
+    } catch (e) {
+      print('Exception fetching full article: $e');
+    }
+    
+    return []; // Return empty if all fail
+  }
+
+  List<String> extractParagraphs(String htmlString, String source) {
+    final document = parse(htmlString);
+    List<Element> pElements = [];
+    
+    if (source == 'The New York Times') {
+      pElements = document.querySelectorAll('section[name="articleBody"] p, div.StoryBodyCompanionColumn p, .story-body-text p');
+    } else if (source == 'The Wall Street Journal') {
+      pElements = document.querySelectorAll('article section p, div.wsj-snippet-body p');
+    } else if (source == 'Financial Times') {
+      pElements = document.querySelectorAll('div[class*="article-body"] p, div.n-layout__row--content p');
+    } else if (source == 'The Economist') {
+      pElements = document.querySelectorAll('article p, div[class*="article__body"] p');
+    } else if (source == 'The Independent') {
+      pElements = document.querySelectorAll('div#main p, div.body-content p, div[class*="body-wrap"] p');
+    } else if (source == 'The Guardian') {
+      pElements = document.querySelectorAll('div[data-gutter] p, div[class*="article-body"] p, div.story-body p');
+    } else if (source == 'BBC') {
+      pElements = document.querySelectorAll('article p, div[class*="RichTextContainer"] p');
+    } else if (source == 'The Conversation') {
+      pElements = document.querySelectorAll('div[itemprop="articleBody"] p, div.entry-content p');
+    }
+    
+    // Fallbacks
+    if (pElements.isEmpty) {
+      pElements = document.querySelectorAll('article p');
+    }
+    if (pElements.isEmpty) {
+      pElements = document.querySelectorAll('main p');
+    }
+    if (pElements.isEmpty) {
+      pElements = document.querySelectorAll('div[class*="article"] p, div[class*="body"] p');
+    }
+    if (pElements.isEmpty) {
+      pElements = document.querySelectorAll('p');
+    }
+
+    final List<String> paragraphs = [];
+    for (final elem in pElements) {
+      final text = elem.text.trim();
+      if (text.isEmpty) continue;
+      
+      // Filter out common ads, share prompts, navigation items, cookie notices
+      if (text.length < 15 && (text.toLowerCase().contains('share') || text.toLowerCase().contains('follow') || text.toLowerCase().contains('ad'))) {
+        continue;
+      }
+      if (text.startsWith('Copyright ') || text.startsWith('© ')) {
+        continue;
+      }
+      
+      paragraphs.add(text);
+    }
+    
+    return paragraphs;
   }
 }

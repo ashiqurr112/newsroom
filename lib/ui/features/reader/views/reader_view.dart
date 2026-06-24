@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:newsroom/data/models/article.dart';
 import 'package:newsroom/data/models/highlight.dart';
 import 'package:newsroom/ui/features/profile/view_models/user_view_model.dart';
+import 'package:newsroom/ui/features/feed/view_models/feed_view_model.dart';
 import 'package:newsroom/ui/core/themes.dart';
 import 'package:newsroom/ui/core/browser_launcher.dart';
 
@@ -20,34 +21,66 @@ class _ReaderViewState extends State<ReaderView> {
   final ScrollController _scrollController = ScrollController();
   double _scrollProgress = 0.0;
   String? _overriddenTheme; // null, 'light', 'sepia', 'dark'
+  List<String>? _fullParagraphs;
+  bool _isLoadingFullText = true;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    
-    // Retrieve previous reading progress and scroll to it if any
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final userVM = Provider.of<UserViewModel>(context, listen: false);
-      final savedArticle = userVM.savedArticles.firstWhere(
-        (a) => a.id == widget.article.id,
-        orElse: () => widget.article,
-      );
-      
-      if (savedArticle.readProgress > 0.0 && savedArticle.readProgress < 0.95) {
-        // Delay slightly to allow layout to complete
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (_scrollController.hasClients) {
-            final targetOffset = savedArticle.readProgress * _scrollController.position.maxScrollExtent;
-            _scrollController.animateTo(
-              targetOffset,
-              duration: const Duration(milliseconds: 500),
-              curve: Curves.easeOut,
-            );
+    _loadFullText();
+  }
+
+  Future<void> _loadFullText() async {
+    setState(() {
+      _isLoadingFullText = true;
+    });
+
+    final feedRepository = Provider.of<FeedViewModel>(context, listen: false).feedRepository;
+    final userVM = Provider.of<UserViewModel>(context, listen: false);
+
+    try {
+      final fullText = await feedRepository.feedService.fetchFullArticle(widget.article.source, widget.article.link);
+
+      if (mounted) {
+        setState(() {
+          if (fullText.isNotEmpty) {
+            _fullParagraphs = fullText;
+          } else {
+            _fullParagraphs = _getParagraphs();
+          }
+          _isLoadingFullText = false;
+        });
+
+        // Restore reading progress once full text is loaded and layout is rendered
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final savedArticle = userVM.savedArticles.firstWhere(
+            (a) => a.id == widget.article.id,
+            orElse: () => widget.article,
+          );
+          
+          if (savedArticle.readProgress > 0.0 && savedArticle.readProgress < 0.95) {
+            Future.delayed(const Duration(milliseconds: 300), () {
+              if (_scrollController.hasClients) {
+                final targetOffset = savedArticle.readProgress * _scrollController.position.maxScrollExtent;
+                _scrollController.animateTo(
+                  targetOffset,
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.easeOut,
+                );
+              }
+            });
           }
         });
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _fullParagraphs = _getParagraphs();
+          _isLoadingFullText = false;
+        });
+      }
+    }
   }
 
   @override
@@ -113,7 +146,6 @@ class _ReaderViewState extends State<ReaderView> {
   Widget build(BuildContext context) {
     final userVM = Provider.of<UserViewModel>(context);
     final theme = _getEffectiveTheme(context, userVM.themeMode);
-    final paragraphs = _getParagraphs();
 
     return Theme(
       data: theme,
@@ -173,7 +205,7 @@ class _ReaderViewState extends State<ReaderView> {
             ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 80),
-              itemCount: paragraphs.length + 2, // Header, paragraphs, Footer details
+              itemCount: _isLoadingFullText ? 3 : (_fullParagraphs!.length + 2),
               itemBuilder: (context, index) {
                 if (index == 0) {
                   // Title and metadata header
@@ -218,7 +250,34 @@ class _ReaderViewState extends State<ReaderView> {
                   );
                 }
 
-                if (index == paragraphs.length + 1) {
+                if (_isLoadingFullText) {
+                  if (index == 1) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 80.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: CircularProgressIndicator(strokeWidth: 3),
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            'Bypassing paywall & unlocking article...',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                }
+
+                if (index == _fullParagraphs!.length + 1) {
                   // Bottom options
                   return Padding(
                     padding: const EdgeInsets.only(top: 32.0),
@@ -259,7 +318,7 @@ class _ReaderViewState extends State<ReaderView> {
                 }
 
                 // Paragraph item
-                final paragraphText = paragraphs[index - 1];
+                final paragraphText = _fullParagraphs![index - 1];
                 final highlights = userVM.getHighlightsForArticle(widget.article.id);
                 final highlight = highlights.firstWhere(
                   (h) => h.passageText == paragraphText,
