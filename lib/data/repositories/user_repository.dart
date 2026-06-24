@@ -155,6 +155,32 @@ class UserRepository {
     }
   }
 
+  Future<void> updateArticleContent(Article article, List<ArticleContentBlock> bodyContent, String? imageUrl) async {
+    bool found = false;
+    _savedArticles = _savedArticles.map((a) {
+      if (a.id == article.id) {
+        found = true;
+        return a.copyWith(
+          bodyContent: bodyContent,
+          imageUrl: imageUrl ?? a.imageUrl,
+          cachedDate: DateTime.now(),
+        );
+      }
+      return a;
+    }).toList();
+
+    if (!found) {
+      _savedArticles.add(article.copyWith(
+        bodyContent: bodyContent,
+        imageUrl: imageUrl,
+        cachedDate: DateTime.now(),
+      ));
+    }
+
+    await _storageService.saveSavedArticles(_savedArticles);
+  }
+
+
   // --- Read Later Queue ---
   Future<void> toggleReadLater(Article article, bool isReadLater) async {
     if (_savedArticles.any((a) => a.id == article.id)) {

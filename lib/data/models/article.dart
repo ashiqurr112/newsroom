@@ -1,4 +1,25 @@
 
+class ArticleContentBlock {
+  final String type; // 'text' or 'image'
+  final String value;
+
+  ArticleContentBlock({required this.type, required this.value});
+
+  Map<String, dynamic> toJson() {
+    return {
+      'type': type,
+      'value': value,
+    };
+  }
+
+  factory ArticleContentBlock.fromJson(Map<String, dynamic> json) {
+    return ArticleContentBlock(
+      type: json['type'] as String,
+      value: json['value'] as String,
+    );
+  }
+}
+
 class Article {
   final String id;
   final String title;
@@ -16,6 +37,8 @@ class Article {
   final bool isArchived;
   final DateTime? savedDate;
   final String? imageUrl;
+  final List<ArticleContentBlock>? bodyContent;
+  final DateTime? cachedDate;
 
   Article({
     required this.id,
@@ -34,6 +57,8 @@ class Article {
     this.isArchived = false,
     this.savedDate,
     this.imageUrl,
+    this.bodyContent,
+    this.cachedDate,
   });
 
   Article copyWith({
@@ -53,6 +78,8 @@ class Article {
     bool? isArchived,
     DateTime? savedDate,
     String? imageUrl,
+    List<ArticleContentBlock>? bodyContent,
+    DateTime? cachedDate,
   }) {
     return Article(
       id: id ?? this.id,
@@ -71,6 +98,8 @@ class Article {
       isArchived: isArchived ?? this.isArchived,
       savedDate: savedDate ?? this.savedDate,
       imageUrl: imageUrl ?? this.imageUrl,
+      bodyContent: bodyContent ?? this.bodyContent,
+      cachedDate: cachedDate ?? this.cachedDate,
     );
   }
 
@@ -92,6 +121,8 @@ class Article {
       'isArchived': isArchived,
       'savedDate': savedDate?.toIso8601String(),
       'imageUrl': imageUrl,
+      'bodyContent': bodyContent?.map((b) => b.toJson()).toList(),
+      'cachedDate': cachedDate?.toIso8601String(),
     };
   }
 
@@ -113,6 +144,12 @@ class Article {
       isArchived: json['isArchived'] as bool? ?? false,
       savedDate: json['savedDate'] != null ? DateTime.parse(json['savedDate'] as String) : null,
       imageUrl: json['imageUrl'] as String?,
+      bodyContent: json['bodyContent'] != null
+          ? (json['bodyContent'] as List)
+              .map((item) => ArticleContentBlock.fromJson(item as Map<String, dynamic>))
+              .toList()
+          : null,
+      cachedDate: json['cachedDate'] != null ? DateTime.parse(json['cachedDate'] as String) : null,
     );
   }
 }

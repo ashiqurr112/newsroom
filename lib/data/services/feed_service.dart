@@ -6,11 +6,12 @@ import 'package:html/dom.dart';
 import '../models/article.dart';
 
 class FullArticleContent {
-  final List<String> paragraphs;
+  final List<ArticleContentBlock> bodyContent;
   final String? imageUrl;
 
-  FullArticleContent({required this.paragraphs, this.imageUrl});
+  FullArticleContent({required this.bodyContent, this.imageUrl});
 }
+
 
 class FeedService {
   final http.Client _client;
@@ -330,9 +331,12 @@ class FeedService {
       final response = await _client.get(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 12));
       if (response.statusCode == 200) {
         final decodedBody = utf8.decode(response.bodyBytes, allowMalformed: true);
-        final content = extractParagraphsAndImage(decodedBody, source);
-        if (content.paragraphs.length >= 3) {
-          return content;
+        if (!isPaywalled(decodedBody, source)) {
+          final content = extractBodyContentAndHeaderImage(decodedBody, source);
+          final textBlocks = content.bodyContent.where((b) => b.type == 'text').toList();
+          if (textBlocks.length >= 3) {
+            return content;
+          }
         }
       }
     } catch (e) {
@@ -345,16 +349,39 @@ class FeedService {
       final response = await _client.get(Uri.parse(txtifyUrl)).timeout(const Duration(seconds: 12));
       if (response.statusCode == 200) {
         final decodedBody = utf8.decode(response.bodyBytes, allowMalformed: true);
-        final content = extractParagraphsAndImage(decodedBody, source);
-        if (content.paragraphs.length >= 3) {
-          return content;
+        if (!isPaywalled(decodedBody, source)) {
+          final content = extractBodyContentAndHeaderImage(decodedBody, source);
+          final textBlocks = content.bodyContent.where((b) => b.type == 'text').toList();
+          if (textBlocks.length >= 3) {
+            return content;
+          }
         }
       }
     } catch (e) {
       print('Exception fetching via Txtify: $e');
     }
 
-    // Tier 3: Google Web Cache
+    // Tier 3: Archive.ph Fallback
+    try {
+      final archiveUrl = 'https://archive.ph/$url';
+      final response = await _client.get(Uri.parse(archiveUrl), headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      }).timeout(const Duration(seconds: 12));
+      if (response.statusCode == 200) {
+        final decodedBody = utf8.decode(response.bodyBytes, allowMalformed: true);
+        if (!isPaywalled(decodedBody, source)) {
+          final content = extractBodyContentAndHeaderImage(decodedBody, source);
+          final textBlocks = content.bodyContent.where((b) => b.type == 'text').toList();
+          if (textBlocks.length >= 3) {
+            return content;
+          }
+        }
+      }
+    } catch (e) {
+      print('Exception fetching via archive.ph: $e');
+    }
+
+    // Tier 4: Google Web Cache
     try {
       final cacheUrl = 'https://webcache.googleusercontent.com/search?q=cache:$url';
       final response = await _client.get(Uri.parse(cacheUrl), headers: {
@@ -363,16 +390,19 @@ class FeedService {
       
       if (response.statusCode == 200) {
         final decodedBody = utf8.decode(response.bodyBytes, allowMalformed: true);
-        final content = extractParagraphsAndImage(decodedBody, source);
-        if (content.paragraphs.length >= 3) {
-          return content;
+        if (!isPaywalled(decodedBody, source)) {
+          final content = extractBodyContentAndHeaderImage(decodedBody, source);
+          final textBlocks = content.bodyContent.where((b) => b.type == 'text').toList();
+          if (textBlocks.length >= 3) {
+            return content;
+          }
         }
       }
     } catch (e) {
       print('Exception fetching via Google Web Cache: $e');
     }
 
-    // Tier 4: Wayback Machine
+    // Tier 5: Wayback Machine
     try {
       final waybackApiUrl = 'https://archive.org/wayback/available?url=${Uri.encodeComponent(url)}';
       final waybackResponse = await _client.get(Uri.parse(waybackApiUrl)).timeout(const Duration(seconds: 8));
@@ -387,9 +417,12 @@ class FeedService {
           final rawResponse = await _client.get(Uri.parse(rawSnapshotUrl)).timeout(const Duration(seconds: 12));
           if (rawResponse.statusCode == 200) {
             final decodedBody = utf8.decode(rawResponse.bodyBytes, allowMalformed: true);
-            final content = extractParagraphsAndImage(decodedBody, source);
-            if (content.paragraphs.length >= 3) {
-              return content;
+            if (!isPaywalled(decodedBody, source)) {
+              final content = extractBodyContentAndHeaderImage(decodedBody, source);
+              final textBlocks = content.bodyContent.where((b) => b.type == 'text').toList();
+              if (textBlocks.length >= 3) {
+                return content;
+              }
             }
           }
         }
@@ -398,13 +431,143 @@ class FeedService {
       print('Exception fetching via Wayback Machine: $e');
     }
     
-    return FullArticleContent(paragraphs: [], imageUrl: null); // Return empty if all fail
+    return FullArticleContent(bodyContent: [], imageUrl: null); // Return empty if all fail
   }
 
-  FullArticleContent extractParagraphsAndImage(String htmlString, String source) {
-    final document = parse(htmlString);
+  bool isPaywalled(String html, String source) {
+    final document = parse(html);
+    if (source == 'The Wall Street Journal') {
+      return document.querySelector('.snippet-promotion, div[id*="-snippet-overlay"], .wsj-snippet-body') != null;
+    } else if (source == 'Financial Times') {
+      return document.querySelector('div#barrier-page') != null || html.contains('barrier-page');
+    } else if (source == 'The New York Times') {
+      return document.querySelector('div#gateway-content') != null || html.contains('gateway-content');
+    }
     
-    // Extract og:image
+    // Generic check for common paywall markers
+    final paywallKeywords = ['paywall', 'subscription-gate', 'regwall', 'subscribe-to-read'];
+    for (final kw in paywallKeywords) {
+      if (html.contains(kw)) {
+        if (document.querySelector('div[class*="paywall"], div[id*="paywall"], .subscription-barrier') != null) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  List<ArticleContentBlock> extractBodyContent(String htmlString, String source) {
+    final document = parse(htmlString);
+    List<Element> containers = [];
+
+    if (source == 'The New York Times') {
+      containers = document.querySelectorAll('section[name="articleBody"], div.StoryBodyCompanionColumn, .story-body-text');
+    } else if (source == 'The Wall Street Journal') {
+      containers = document.querySelectorAll('article section, div.wsj-snippet-body');
+    } else if (source == 'Financial Times') {
+      containers = document.querySelectorAll('div[class*="article-body"], div.n-layout__row--content');
+    } else if (source == 'The Economist') {
+      containers = document.querySelectorAll('article, div[class*="article__body"]');
+    } else if (source == 'The Independent') {
+      containers = document.querySelectorAll('div#main, div.body-content, div[class*="body-wrap"]');
+    } else if (source == 'The Guardian') {
+      containers = document.querySelectorAll('div[data-gutter], div[class*="article-body"], div.story-body');
+    } else if (source == 'BBC') {
+      containers = document.querySelectorAll('article, div[class*="RichTextContainer"]');
+    } else if (source == 'The Conversation') {
+      containers = document.querySelectorAll('div[itemprop="articleBody"], div.entry-content');
+    }
+
+    if (containers.isEmpty) {
+      containers = document.querySelectorAll('article');
+    }
+    if (containers.isEmpty) {
+      containers = document.querySelectorAll('main');
+    }
+    if (containers.isEmpty) {
+      containers = document.querySelectorAll('div[class*="article"], div[class*="body"]');
+    }
+
+    // Filter out containers that are descendants of other containers to prevent duplicate parsing
+    final List<Element> uniqueContainers = [];
+    for (final c in containers) {
+      if (!uniqueContainers.any((parent) => parent.contains(c))) {
+        uniqueContainers.add(c);
+      }
+    }
+
+    final List<ArticleContentBlock> blocks = [];
+    final Set<String> processedTexts = {};
+    final Set<String> processedImages = {};
+
+    String? getActualSrc(Element img) {
+      final attrs = img.attributes;
+      final candidates = ['src', 'data-src', 'data-srcset', 'srcset', 'currentsourceurl', 'data-urllink'];
+      for (final key in candidates) {
+        final val = attrs[key]?.trim();
+        if (val != null && val.isNotEmpty && !val.startsWith('data:image/')) {
+          if (key == 'srcset' || key == 'data-srcset') {
+            final parts = val.split(',');
+            if (parts.isNotEmpty) {
+              final firstUrl = parts.first.trim().split(' ').first;
+              if (firstUrl.isNotEmpty) return firstUrl;
+            }
+          } else {
+            return val;
+          }
+        }
+      }
+      return attrs['src']?.trim();
+    }
+
+    void traverse(Element element) {
+      final elements = element.querySelectorAll('p, img');
+      for (final elem in elements) {
+        if (elem.localName == 'p') {
+          final text = elem.text.trim();
+          if (text.isEmpty) continue;
+          if (text.length < 15 && (text.toLowerCase().contains('share') || text.toLowerCase().contains('follow') || text.toLowerCase().contains('ad'))) {
+            continue;
+          }
+          if (text.startsWith('Copyright ') || text.startsWith('© ')) {
+            continue;
+          }
+          if (!processedTexts.contains(text)) {
+            processedTexts.add(text);
+            blocks.add(ArticleContentBlock(type: 'text', value: text));
+          }
+        } else if (elem.localName == 'img') {
+          final src = getActualSrc(elem);
+          if (src != null && src.isNotEmpty && !src.startsWith('data:image/')) {
+            var fullSrc = src;
+            if (src.startsWith('//')) {
+              fullSrc = 'https:$src';
+            }
+            if (!processedImages.contains(fullSrc)) {
+              processedImages.add(fullSrc);
+              blocks.add(ArticleContentBlock(type: 'image', value: fullSrc));
+            }
+          }
+        }
+      }
+    }
+
+    if (uniqueContainers.isNotEmpty) {
+      for (final container in uniqueContainers) {
+        traverse(container);
+      }
+    } else {
+      final body = document.body;
+      if (body != null) {
+        traverse(body);
+      }
+    }
+
+    return blocks;
+  }
+
+  FullArticleContent extractBodyContentAndHeaderImage(String htmlString, String source) {
+    final document = parse(htmlString);
     String? imageUrl;
     final ogImageMeta = document.querySelector('head > meta[property="og:image"]');
     if (ogImageMeta != null) {
@@ -417,60 +580,18 @@ class FeedService {
       }
     }
 
-    List<Element> pElements = [];
-    
-    if (source == 'The New York Times') {
-      pElements = document.querySelectorAll('section[name="articleBody"] p, div.StoryBodyCompanionColumn p, .story-body-text p');
-    } else if (source == 'The Wall Street Journal') {
-      pElements = document.querySelectorAll('article section p, div.wsj-snippet-body p');
-    } else if (source == 'Financial Times') {
-      pElements = document.querySelectorAll('div[class*="article-body"] p, div.n-layout__row--content p');
-    } else if (source == 'The Economist') {
-      pElements = document.querySelectorAll('article p, div[class*="article__body"] p');
-    } else if (source == 'The Independent') {
-      pElements = document.querySelectorAll('div#main p, div.body-content p, div[class*="body-wrap"] p');
-    } else if (source == 'The Guardian') {
-      pElements = document.querySelectorAll('div[data-gutter] p, div[class*="article-body"] p, div.story-body p');
-    } else if (source == 'BBC') {
-      pElements = document.querySelectorAll('article p, div[class*="RichTextContainer"] p');
-    } else if (source == 'The Conversation') {
-      pElements = document.querySelectorAll('div[itemprop="articleBody"] p, div.entry-content p');
-    }
-    
-    // Fallbacks
-    if (pElements.isEmpty) {
-      pElements = document.querySelectorAll('article p');
-    }
-    if (pElements.isEmpty) {
-      pElements = document.querySelectorAll('main p');
-    }
-    if (pElements.isEmpty) {
-      pElements = document.querySelectorAll('div[class*="article"] p, div[class*="body"] p');
-    }
-    if (pElements.isEmpty) {
-      pElements = document.querySelectorAll('p');
+    final bodyContent = extractBodyContent(htmlString, source);
+
+    if (imageUrl == null || imageUrl.isEmpty) {
+      for (final block in bodyContent) {
+        if (block.type == 'image') {
+          imageUrl = block.value;
+          break;
+        }
+      }
     }
 
-    final List<String> paragraphs = [];
-    for (final elem in pElements) {
-      final text = elem.text.trim();
-      if (text.isEmpty) continue;
-      
-      // Filter out common ads, share prompts, navigation items, cookie notices
-      if (text.length < 15 && (text.toLowerCase().contains('share') || text.toLowerCase().contains('follow') || text.toLowerCase().contains('ad'))) {
-        continue;
-      }
-      if (text.startsWith('Copyright ') || text.startsWith('© ')) {
-        continue;
-      }
-      
-      paragraphs.add(text);
-    }
-    
-    return FullArticleContent(paragraphs: paragraphs, imageUrl: imageUrl);
-  }
-
-  List<String> extractParagraphs(String htmlString, String source) {
-    return extractParagraphsAndImage(htmlString, source).paragraphs;
+    return FullArticleContent(bodyContent: bodyContent, imageUrl: imageUrl);
   }
 }
+

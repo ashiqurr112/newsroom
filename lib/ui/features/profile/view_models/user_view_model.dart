@@ -121,6 +121,12 @@ class UserViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateArticleContent(Article article, List<ArticleContentBlock> bodyContent, String? imageUrl) async {
+    await userRepository.updateArticleContent(article, bodyContent, imageUrl);
+    notifyListeners();
+  }
+
+
   Future<void> toggleReadLater(Article article, bool isReadLater) async {
     await userRepository.toggleReadLater(article, isReadLater);
     notifyListeners();

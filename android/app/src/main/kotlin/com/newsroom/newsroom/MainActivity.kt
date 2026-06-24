@@ -30,13 +30,20 @@ class MainActivity : FlutterActivity() {
 
     private fun launchQuettaBrowser(url: String): Boolean {
         return try {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-            intent.setPackage("net.quetta.browse")
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-            true
+            val pm = packageManager
+            val launchIntent = pm.getLaunchIntentForPackage("net.quetta.browse")
+            if (launchIntent != null) {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                intent.setPackage("net.quetta.browse")
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+                true
+            } else {
+                false
+            }
         } catch (e: Exception) {
             false
         }
     }
+
 }

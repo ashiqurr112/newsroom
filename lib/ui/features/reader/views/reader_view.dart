@@ -21,7 +21,7 @@ class _ReaderViewState extends State<ReaderView> with WidgetsBindingObserver {
   final ScrollController _scrollController = ScrollController();
   double _scrollProgress = 0.0;
   String? _overriddenTheme; // null, 'light', 'sepia', 'dark'
-  List<String>? _fullParagraphs;
+  List<ArticleContentBlock>? _fullContentBlocks;
   bool _isLoadingFullText = true;
   String? _fullArticleImageUrl;
 
@@ -41,54 +41,77 @@ class _ReaderViewState extends State<ReaderView> with WidgetsBindingObserver {
     final feedRepository = Provider.of<FeedViewModel>(context, listen: false).feedRepository;
     final userVM = Provider.of<UserViewModel>(context, listen: false);
 
+    // Check offline cache (saved_articles.json / savedArticles list)
+    final cachedArticle = userVM.savedArticles.firstWhere(
+      (a) => a.id == widget.article.id && a.bodyContent != null && a.cachedDate != null,
+      orElse: () => widget.article,
+    );
+
+    if (cachedArticle.bodyContent != null && cachedArticle.cachedDate != null) {
+      final difference = DateTime.now().difference(cachedArticle.cachedDate!);
+      if (difference.inDays < 7) {
+        setState(() {
+          _fullContentBlocks = cachedArticle.bodyContent;
+          _fullArticleImageUrl = cachedArticle.imageUrl;
+          _isLoadingFullText = false;
+        });
+        _restoreScrollProgress(userVM);
+        return;
+      }
+    }
+
     try {
       final fullContent = await feedRepository.feedService.fetchFullArticle(widget.article.source, widget.article.link);
 
       if (mounted) {
+        List<ArticleContentBlock> blocks = [];
+        if (fullContent.bodyContent.isNotEmpty) {
+          blocks = fullContent.bodyContent;
+        } else {
+          blocks = _getParagraphBlocks();
+        }
+
         setState(() {
-          if (fullContent.paragraphs.isNotEmpty) {
-            _fullParagraphs = fullContent.paragraphs;
-          } else {
-            _fullParagraphs = _getParagraphs();
-          }
+          _fullContentBlocks = blocks;
           _fullArticleImageUrl = fullContent.imageUrl;
           _isLoadingFullText = false;
         });
 
-        // Save the image URL in repository database if fetched
-        if (fullContent.imageUrl != null && widget.article.imageUrl == null) {
-          userVM.updateArticleImageUrl(widget.article, fullContent.imageUrl!);
-        }
+        // Save downloaded content to persistent cache
+        await userVM.updateArticleContent(widget.article, blocks, fullContent.imageUrl);
 
-        // Restore reading progress once full text is loaded and layout is rendered
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          final savedArticle = userVM.savedArticles.firstWhere(
-            (a) => a.id == widget.article.id,
-            orElse: () => widget.article,
-          );
-          
-          if (savedArticle.readProgress > 0.0 && savedArticle.readProgress < 0.95) {
-            Future.delayed(const Duration(milliseconds: 300), () {
-              if (_scrollController.hasClients) {
-                final targetOffset = savedArticle.readProgress * _scrollController.position.maxScrollExtent;
-                _scrollController.animateTo(
-                  targetOffset,
-                  duration: const Duration(milliseconds: 500),
-                  curve: Curves.easeOut,
-                );
-              }
-            });
-          }
-        });
+        _restoreScrollProgress(userVM);
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _fullParagraphs = _getParagraphs();
+          _fullContentBlocks = _getParagraphBlocks();
           _isLoadingFullText = false;
         });
       }
     }
+  }
+
+  void _restoreScrollProgress(UserViewModel userVM) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final savedArticle = userVM.savedArticles.firstWhere(
+        (a) => a.id == widget.article.id,
+        orElse: () => widget.article,
+      );
+      
+      if (savedArticle.readProgress > 0.0 && savedArticle.readProgress < 0.95) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (_scrollController.hasClients) {
+            final targetOffset = savedArticle.readProgress * _scrollController.position.maxScrollExtent;
+            _scrollController.animateTo(
+              targetOffset,
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+      }
+    });
   }
 
   @override
@@ -143,10 +166,10 @@ class _ReaderViewState extends State<ReaderView> with WidgetsBindingObserver {
     }
   }
 
-  List<String> _getParagraphs() {
+  List<ArticleContentBlock> _getParagraphBlocks() {
     final snippet = widget.article.contentSnippet;
     if (snippet.isEmpty) {
-      return ['No article content text available.'];
+      return [ArticleContentBlock(type: 'text', value: 'No article content text available.')];
     }
     
     // Split by double newlines or single newlines if no double newlines exist
@@ -155,8 +178,13 @@ class _ReaderViewState extends State<ReaderView> with WidgetsBindingObserver {
       paras = snippet.split('\n');
     }
     
-    return paras.map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
+    return paras
+        .map((p) => p.trim())
+        .where((p) => p.isNotEmpty)
+        .map((p) => ArticleContentBlock(type: 'text', value: p))
+        .toList();
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -215,238 +243,268 @@ class _ReaderViewState extends State<ReaderView> with WidgetsBindingObserver {
             ),
           ],
         ),
-        body: Stack(
-          children: [
-            // Scrollable text view
-            ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 80),
-              itemCount: _isLoadingFullText ? 3 : (_fullParagraphs!.length + 2),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  // Title and metadata header
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.article.title,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontSize: 26,
-                            height: 1.25,
-                            fontWeight: FontWeight.bold,
+        body: SelectionArea(
+          child: Stack(
+            children: [
+              // Scrollable text view
+              ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 80),
+                itemCount: _isLoadingFullText ? 3 : (_fullContentBlocks!.length + 2),
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    // Title and metadata header
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.article.title,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontSize: 26,
+                              height: 1.25,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Text(
-                              'By ${widget.article.author}',
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontStyle: FontStyle.italic,
-                                color: Colors.grey,
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Text(
+                                'By ${widget.article.author}',
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontStyle: FontStyle.italic,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '${widget.article.pubDate.day}/${widget.article.pubDate.month}/${widget.article.pubDate.year}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          const Divider(thickness: 1),
+                          if (widget.article.imageUrl != null || _fullArticleImageUrl != null) ...[
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                widget.article.imageUrl ?? _fullArticleImageUrl!,
+                                width: double.infinity,
+                                height: 220,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Container(
+                                    height: 220,
+                                    color: theme.brightness == Brightness.dark ? Colors.grey.shade900 : Colors.grey.shade100,
+                                    child: const Center(
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    ),
+                                  );
+                                },
                               ),
                             ),
-                            const Spacer(),
+                            const SizedBox(height: 16),
+                          ],
+                        ],
+                      ),
+                    );
+                  }
+  
+                  if (_isLoadingFullText) {
+                    if (index == 1) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 80.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: CircularProgressIndicator(strokeWidth: 3),
+                            ),
+                            const SizedBox(height: 24),
                             Text(
-                              '${widget.article.pubDate.day}/${widget.article.pubDate.month}/${widget.article.pubDate.year}',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey,
+                              'Bypassing paywall & unlocking article...',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+                                fontStyle: FontStyle.italic,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        const Divider(thickness: 1),
-                        if (widget.article.imageUrl != null || _fullArticleImageUrl != null) ...[
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.network(
-                              widget.article.imageUrl ?? _fullArticleImageUrl!,
-                              width: double.infinity,
-                              height: 220,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Container(
-                                  height: 220,
-                                  color: theme.brightness == Brightness.dark ? Colors.grey.shade900 : Colors.grey.shade100,
-                                  child: const Center(
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  ),
-                                );
-                              },
-                            ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  }
+  
+                  if (index == _fullContentBlocks!.length + 1) {
+                    // Bottom options
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 32.0),
+                      child: Column(
+                        children: [
+                          const Divider(),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'End of Clutter-Free reading mode.',
+                            style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic, fontSize: 13),
                           ),
                           const SizedBox(height: 16),
-                        ],
-                      ],
-                    ),
-                  );
-                }
-
-                if (_isLoadingFullText) {
-                  if (index == 1) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 80.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const SizedBox(
-                            width: 40,
-                            height: 40,
-                            child: CircularProgressIndicator(strokeWidth: 3),
+                          ElevatedButton.icon(
+                            onPressed: () => BrowserLauncher.launchArticle(widget.article.link),
+                            icon: const Icon(Icons.open_in_browser_rounded),
+                            label: const Text('Read Original on Website'),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            ),
                           ),
-                          const SizedBox(height: 24),
-                          Text(
-                            'Bypassing paywall & unlocking article...',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
-                              fontStyle: FontStyle.italic,
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: widget.article.link));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Link copied to clipboard!')),
+                              );
+                            },
+                            icon: const Icon(Icons.copy_rounded),
+                            label: const Text('Copy Article Link'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                             ),
                           ),
                         ],
                       ),
                     );
                   }
-                  return const SizedBox.shrink();
-                }
-
-                if (index == _fullParagraphs!.length + 1) {
-                  // Bottom options
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 32.0),
-                    child: Column(
-                      children: [
-                        const Divider(),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'End of Clutter-Free reading mode.',
-                          style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic, fontSize: 13),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: () => BrowserLauncher.launchArticle(widget.article.link),
-                          icon: const Icon(Icons.open_in_browser_rounded),
-                          label: const Text('Read Original on Website'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: () {
-                            Clipboard.setData(ClipboardData(text: widget.article.link));
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Link copied to clipboard!')),
+  
+                  // Block item
+                  final block = _fullContentBlocks![index - 1];
+  
+                  if (block.type == 'image') {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 20.0),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          block.value,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              height: 200,
+                              color: theme.brightness == Brightness.dark ? Colors.grey.shade900 : Colors.grey.shade100,
+                              child: const Center(
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
                             );
                           },
-                          icon: const Icon(Icons.copy_rounded),
-                          label: const Text('Copy Article Link'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          ),
                         ),
-                      ],
-                    ),
-                  );
-                }
-
-                // Paragraph item
-                final paragraphText = _fullParagraphs![index - 1];
-                final highlights = userVM.getHighlightsForArticle(widget.article.id);
-                final highlight = highlights.firstWhere(
-                  (h) => h.passageText == paragraphText,
-                  orElse: () => Highlight(id: '', articleId: '', passageText: '', noteText: '', createdAt: DateTime.now()),
-                );
-                
-                final isHighlighted = highlight.id.isNotEmpty;
-                final hasNote = isHighlighted && highlight.noteText.isNotEmpty;
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 18.0),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () => _showParagraphOptions(context, userVM, paragraphText, highlight),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: isHighlighted 
-                          ? (theme.brightness == Brightness.dark 
-                              ? Colors.yellow.withValues(alpha: 0.15) 
-                              : const Color(0xFFFFF1C5))
-                          : Colors.transparent,
-                        borderRadius: BorderRadius.circular(8),
-                        border: isHighlighted
-                          ? Border.all(color: Colors.amber.withValues(alpha: 0.4), width: 1)
-                          : null,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            paragraphText,
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              fontSize: userVM.fontSize,
-                            ),
-                          ),
-                          if (hasNote) ...[
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: theme.brightness == Brightness.dark 
-                                  ? Colors.white10 
-                                  : Colors.black.withValues(alpha: 0.04),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border(left: BorderSide(color: theme.primaryColor, width: 3)),
+                    );
+                  }
+  
+                  // Paragraph Text block item
+                  final paragraphText = block.value;
+                  final highlights = userVM.getHighlightsForArticle(widget.article.id);
+                  final highlight = highlights.firstWhere(
+                    (h) => h.passageText == paragraphText,
+                    orElse: () => Highlight(id: '', articleId: '', passageText: '', noteText: '', createdAt: DateTime.now()),
+                  );
+                  
+                  final isHighlighted = highlight.id.isNotEmpty;
+                  final hasNote = isHighlighted && highlight.noteText.isNotEmpty;
+  
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 18.0),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => _showParagraphOptions(context, userVM, paragraphText, highlight),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: isHighlighted 
+                            ? (theme.brightness == Brightness.dark 
+                                ? Colors.yellow.withValues(alpha: 0.15) 
+                                : const Color(0xFFFFF1C5))
+                            : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          border: isHighlighted
+                            ? Border.all(color: Colors.amber.withValues(alpha: 0.4), width: 1)
+                            : null,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              paragraphText,
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                fontSize: userVM.fontSize,
                               ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(Icons.notes_rounded, size: 14, color: theme.primaryColor),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      highlight.noteText,
-                                      style: TextStyle(
-                                        fontSize: userVM.fontSize - 3,
-                                        fontStyle: FontStyle.italic,
-                                        height: 1.3,
+                            ),
+                            if (hasNote) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: theme.brightness == Brightness.dark 
+                                    ? Colors.white10 
+                                    : Colors.black.withValues(alpha: 0.04),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border(left: BorderSide(color: theme.primaryColor, width: 3)),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(Icons.notes_rounded, size: 14, color: theme.primaryColor),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        highlight.noteText,
+                                        style: TextStyle(
+                                          fontSize: userVM.fontSize - 3,
+                                          fontStyle: FontStyle.italic,
+                                          height: 1.3,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          ]
-                        ],
+                                  ],
+                                ),
+                              )
+                            ]
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                );
-              },
-            ),
-
-            // Scroll indicator at the top
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: LinearProgressIndicator(
-                value: _scrollProgress,
-                minHeight: 3.5,
-                color: theme.colorScheme.secondary,
-                backgroundColor: Colors.transparent,
+                  );
+                },
               ),
-            ),
-          ],
+  
+              // Scroll indicator at the top
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: LinearProgressIndicator(
+                  value: _scrollProgress,
+                  minHeight: 3.5,
+                  color: theme.colorScheme.secondary,
+                  backgroundColor: Colors.transparent,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -560,6 +618,22 @@ class _ReaderViewState extends State<ReaderView> with WidgetsBindingObserver {
                   hintText: 'Add a personal note or translation to this passage...',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                   contentPadding: const EdgeInsets.all(12),
+                ),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: passageText));
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Paragraph copied to clipboard!')),
+                  );
+                },
+                icon: const Icon(Icons.copy_rounded),
+                label: const Text('Copy Paragraph Text'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
               ),
               const SizedBox(height: 16),
