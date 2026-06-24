@@ -17,7 +17,7 @@ void main() async {
   final feedService = FeedService();
   
   // Setup repositories
-  final userRepository = UserRepository(storageService: storageService);
+  final userRepository = UserRepository(storageService);
   final feedRepository = FeedRepository(feedService: feedService);
   
   // Initialize repository

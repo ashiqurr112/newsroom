@@ -14,7 +14,7 @@ class UserRepository {
   List<Collection> _collections = [];
   List<Highlight> _highlights = [];
 
-  UserRepository({required StorageService storageService}) : _storageService = storageService;
+  UserRepository(this._storageService);
 
   UserProfile get profile => _profile;
   List<Article> get savedArticles => _savedArticles;

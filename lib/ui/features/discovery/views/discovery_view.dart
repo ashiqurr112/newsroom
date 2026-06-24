@@ -119,7 +119,7 @@ class DiscoveryView extends StatelessWidget {
                           title: Text(topicName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                           subtitle: Text('${matches.length} editorials covering this event'),
                           leading: CircleAvatar(
-                            backgroundColor: theme.primaryColor.withOpacity(0.1),
+                            backgroundColor: theme.primaryColor.withValues(alpha: 0.1),
                             child: Icon(Icons.explore_rounded, color: theme.primaryColor),
                           ),
                           children: matches.map((article) {
@@ -169,7 +169,7 @@ class DiscoveryView extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.secondary.withOpacity(0.1),
+                                color: theme.colorScheme.secondary.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(

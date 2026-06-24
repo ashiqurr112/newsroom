@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:newsroom/data/models/article.dart';
 import 'package:newsroom/ui/features/profile/view_models/user_view_model.dart';
 import 'package:newsroom/ui/features/reader/views/reader_view.dart';
 
@@ -64,7 +63,7 @@ class ProfileView extends StatelessWidget {
     // Statistics calculations
     // Filter articles read in the last 7 days (readProgress >= 0.9)
     final oneWeekAgo = DateTime.now().subtract(const Duration(days: 7));
-    final readArticles = userVM.savedArticles.where((a) => a.readProgress >= 0.9).toList();
+    final readArticles = userVM.savedArticles.where((a) => a.readProgress >= 0.9 && a.savedDate != null && a.savedDate!.isAfter(oneWeekAgo)).toList();
     
     // Estimate word count (roughly 1200 words per opinion piece)
     final estimatedWordsRead = readArticles.length * 1200;
@@ -101,7 +100,7 @@ class ProfileView extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 gradient: LinearGradient(
-                  colors: [theme.primaryColor, theme.primaryColor.withOpacity(0.8)],
+                  colors: [theme.primaryColor, theme.primaryColor.withValues(alpha: 0.8)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -196,7 +195,7 @@ class ProfileView extends StatelessWidget {
                           shape: BoxShape.circle,
                           color: isRead
                               ? theme.primaryColor
-                              : (isToday ? theme.primaryColor.withOpacity(0.15) : Colors.transparent),
+                              : (isToday ? theme.primaryColor.withValues(alpha: 0.15) : Colors.transparent),
                           border: isToday
                               ? Border.all(color: theme.primaryColor, width: 1.5)
                               : null,
@@ -209,7 +208,7 @@ class ProfileView extends StatelessWidget {
                             fontWeight: (isRead || isToday) ? FontWeight.bold : FontWeight.normal,
                             color: isRead
                                 ? Colors.white
-                                : (isToday ? theme.primaryColor : theme.textTheme.bodyLarge?.color?.withOpacity(0.7)),
+                                : (isToday ? theme.primaryColor : theme.textTheme.bodyLarge?.color?.withValues(alpha: 0.7)),
                           ),
                         ),
                       );
@@ -318,7 +317,7 @@ class ProfileView extends StatelessWidget {
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: getSourceColor(art.source).withOpacity(0.1),
+                          backgroundColor: getSourceColor(art.source).withValues(alpha: 0.1),
                           child: Icon(Icons.watch_later_rounded, color: getSourceColor(art.source), size: 20),
                         ),
                         title: Text(art.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),

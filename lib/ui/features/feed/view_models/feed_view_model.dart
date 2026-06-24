@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
-import '../../../../data/models/article.dart';
-import '../../../../data/models/user_profile.dart';
-import '../../../../data/repositories/feed_repository.dart';
+import 'package:newsroom/data/models/article.dart';
+import 'package:newsroom/data/models/user_profile.dart';
+import 'package:newsroom/data/repositories/feed_repository.dart';
 
 class FeedViewModel extends ChangeNotifier {
-  final FeedRepository _feedRepository;
+  final FeedRepository feedRepository;
   List<Article> _articles = [];
   bool _isLoading = false;
   String _errorMessage = '';
   String _searchQuery = '';
   String _lengthFilter = 'All'; // 'All', 'Short', 'Medium', 'Long'
 
-  FeedViewModel({required FeedRepository feedRepository}) : _feedRepository = feedRepository;
+  FeedViewModel({required this.feedRepository});
 
   List<Article> get articles {
     var list = List<Article>.from(_articles);
@@ -52,7 +52,7 @@ class FeedViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _articles = await _feedRepository.getFeed(profile: profile, forceRefresh: forceRefresh);
+      _articles = await feedRepository.getFeed(profile: profile, forceRefresh: forceRefresh);
       if (_articles.isEmpty) {
         _errorMessage = 'No articles found. Check your internet connection or feed settings.';
       }

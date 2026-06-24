@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:newsroom/data/models/article.dart';
 import 'package:newsroom/data/repositories/feed_repository.dart';
 import 'package:newsroom/ui/features/profile/view_models/user_view_model.dart';
 import 'package:newsroom/ui/features/feed/view_models/feed_view_model.dart';
@@ -126,7 +125,7 @@ class _FeedViewState extends State<FeedView> {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: userVM.profile.searchHistory.length > 5 ? 5 : userVM.profile.searchHistory.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                separatorBuilder: (context, index) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
                   final query = userVM.profile.searchHistory[index];
                   return InputChip(
@@ -321,7 +320,7 @@ class _FeedViewState extends State<FeedView> {
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
                                             style: theme.textTheme.bodyMedium?.copyWith(
-                                              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
+                                              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.8),
                                             ),
                                           ),
                                           const SizedBox(height: 12),
@@ -336,7 +335,7 @@ class _FeedViewState extends State<FeedView> {
                                                     borderRadius: BorderRadius.circular(4),
                                                     minHeight: 4,
                                                     color: theme.primaryColor,
-                                                    backgroundColor: theme.primaryColor.withOpacity(0.15),
+                                                    backgroundColor: theme.primaryColor.withValues(alpha: 0.15),
                                                   ),
                                                 ),
                                                 const SizedBox(width: 8),

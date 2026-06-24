@@ -66,7 +66,7 @@ void main() {
 
     setUp(() {
       fakeStorage = FakeStorageService();
-      repository = UserRepository(storageService: fakeStorage);
+      repository = UserRepository(fakeStorage);
     });
 
     test('Initializes correctly and loads default values', () async {

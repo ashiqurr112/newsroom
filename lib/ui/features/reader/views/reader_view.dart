@@ -264,12 +264,12 @@ class _ReaderViewState extends State<ReaderView> {
                       decoration: BoxDecoration(
                         color: isHighlighted 
                           ? (theme.brightness == Brightness.dark 
-                              ? Colors.yellow.withOpacity(0.15) 
+                              ? Colors.yellow.withValues(alpha: 0.15) 
                               : const Color(0xFFFFF1C5))
                           : Colors.transparent,
                         borderRadius: BorderRadius.circular(8),
                         border: isHighlighted
-                          ? Border.all(color: Colors.amber.withOpacity(0.4), width: 1)
+                          ? Border.all(color: Colors.amber.withValues(alpha: 0.4), width: 1)
                           : null,
                       ),
                       child: Column(
@@ -288,7 +288,7 @@ class _ReaderViewState extends State<ReaderView> {
                               decoration: BoxDecoration(
                                 color: theme.brightness == Brightness.dark 
                                   ? Colors.white10 
-                                  : Colors.black.withOpacity(0.04),
+                                  : Colors.black.withValues(alpha: 0.04),
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border(left: BorderSide(color: theme.primaryColor, width: 3)),
                               ),

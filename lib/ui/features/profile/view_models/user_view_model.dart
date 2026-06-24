@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../../data/models/article.dart';
-import '../../../../data/models/collection.dart';
-import '../../../../data/models/highlight.dart';
-import '../../../../data/models/user_profile.dart';
-import '../../../../data/repositories/user_repository.dart';
+import 'package:newsroom/data/models/article.dart';
+import 'package:newsroom/data/models/collection.dart';
+import 'package:newsroom/data/models/highlight.dart';
+import 'package:newsroom/data/models/user_profile.dart';
+import 'package:newsroom/data/repositories/user_repository.dart';
 
 class UserViewModel extends ChangeNotifier {
-  final UserRepository _userRepository;
+  final UserRepository userRepository;
   String _themeMode = 'light'; // 'light', 'sepia', 'dark'
   double _fontSize = 18.0;
 
-  UserViewModel({required UserRepository userRepository}) : _userRepository = userRepository {
+  UserViewModel({required this.userRepository}) {
     _loadPreferences();
   }
 
-  UserProfile get profile => _userRepository.profile;
-  List<Article> get savedArticles => _userRepository.savedArticles;
-  List<Collection> get collections => _userRepository.collections;
-  List<Highlight> get highlights => _userRepository.highlights;
+  UserProfile get profile => userRepository.profile;
+  List<Article> get savedArticles => userRepository.savedArticles;
+  List<Collection> get collections => userRepository.collections;
+  List<Highlight> get highlights => userRepository.highlights;
   String get themeMode => _themeMode;
   double get fontSize => _fontSize;
 
@@ -57,106 +57,106 @@ class UserViewModel extends ChangeNotifier {
 
   // Delegated Repository Operations
   Future<void> updateRegion(String region) async {
-    await _userRepository.updateRegion(region);
+    await userRepository.updateRegion(region);
     notifyListeners();
   }
 
   Future<void> addMutedKeyword(String keyword) async {
-    await _userRepository.addMutedKeyword(keyword);
+    await userRepository.addMutedKeyword(keyword);
     notifyListeners();
   }
 
   Future<void> removeMutedKeyword(String keyword) async {
-    await _userRepository.removeMutedKeyword(keyword);
+    await userRepository.removeMutedKeyword(keyword);
     notifyListeners();
   }
 
   Future<void> updatePaperPriority(String paper, int priority) async {
-    await _userRepository.updatePaperPriority(paper, priority);
+    await userRepository.updatePaperPriority(paper, priority);
     notifyListeners();
   }
 
   Future<void> togglePaper(String paper, bool enabled) async {
-    await _userRepository.togglePaper(paper, enabled);
+    await userRepository.togglePaper(paper, enabled);
     notifyListeners();
   }
 
   Future<void> followAuthor(String author) async {
-    await _userRepository.followAuthor(author);
+    await userRepository.followAuthor(author);
     notifyListeners();
   }
 
   Future<void> unfollowAuthor(String author) async {
-    await _userRepository.unfollowAuthor(author);
+    await userRepository.unfollowAuthor(author);
     notifyListeners();
   }
 
   Future<void> addSearchQuery(String query) async {
-    await _userRepository.addSearchQuery(query);
+    await userRepository.addSearchQuery(query);
     notifyListeners();
   }
 
   Future<void> clearSearchHistory() async {
-    await _userRepository.clearSearchHistory();
+    await userRepository.clearSearchHistory();
     notifyListeners();
   }
 
   Future<void> saveArticle(Article article) async {
-    await _userRepository.saveArticle(article);
+    await userRepository.saveArticle(article);
     notifyListeners();
   }
 
   Future<void> unsaveArticle(String articleId) async {
-    await _userRepository.unsaveArticle(articleId);
+    await userRepository.unsaveArticle(articleId);
     notifyListeners();
   }
 
   Future<void> updateArticleProgress(Article article, double progress) async {
-    await _userRepository.updateArticleProgress(article, progress);
+    await userRepository.updateArticleProgress(article, progress);
     notifyListeners();
   }
 
   Future<void> toggleReadLater(Article article, bool isReadLater) async {
-    await _userRepository.toggleReadLater(article, isReadLater);
+    await userRepository.toggleReadLater(article, isReadLater);
     notifyListeners();
   }
 
   Future<void> createCollection(String name, int color, {List<String> tags = const []}) async {
-    await _userRepository.createCollection(name, color, tags: tags);
+    await userRepository.createCollection(name, color, tags: tags);
     notifyListeners();
   }
 
   Future<void> deleteCollection(String id) async {
-    await _userRepository.deleteCollection(id);
+    await userRepository.deleteCollection(id);
     notifyListeners();
   }
 
   Future<void> addArticleToCollection(String collectionId, String articleId) async {
-    await _userRepository.addArticleToCollection(collectionId, articleId);
+    await userRepository.addArticleToCollection(collectionId, articleId);
     notifyListeners();
   }
 
   Future<void> removeArticleFromCollection(String collectionId, String articleId) async {
-    await _userRepository.removeArticleFromCollection(collectionId, articleId);
+    await userRepository.removeArticleFromCollection(collectionId, articleId);
     notifyListeners();
   }
 
   List<Highlight> getHighlightsForArticle(String articleId) {
-    return _userRepository.getHighlightsForArticle(articleId);
+    return userRepository.getHighlightsForArticle(articleId);
   }
 
   Future<void> addHighlight(String articleId, String passageText, String noteText) async {
-    await _userRepository.addHighlight(articleId, passageText, noteText);
+    await userRepository.addHighlight(articleId, passageText, noteText);
     notifyListeners();
   }
 
   Future<void> removeHighlight(String highlightId) async {
-    await _userRepository.removeHighlight(highlightId);
+    await userRepository.removeHighlight(highlightId);
     notifyListeners();
   }
   
   Future<void> forceArchiveScan() async {
-    await _userRepository.autoArchiveOldArticles();
+    await userRepository.autoArchiveOldArticles();
     notifyListeners();
   }
 }

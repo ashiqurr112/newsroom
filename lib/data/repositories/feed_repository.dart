@@ -1,11 +1,11 @@
-import '../models/article.dart';
-import '../models/user_profile.dart';
-import '../services/feed_service.dart';
+import 'package:newsroom/data/models/article.dart';
+import 'package:newsroom/data/models/user_profile.dart';
+import 'package:newsroom/data/services/feed_service.dart';
 
 class FeedRepository {
-  final FeedService _feedService;
+  final FeedService feedService;
 
-  FeedRepository({required FeedService feedService}) : _feedService = feedService;
+  FeedRepository({required this.feedService});
 
   static const Map<String, Map<String, String>> sources = {
     'The New York Times': {
@@ -70,7 +70,7 @@ class FeedRepository {
     sources.forEach((name, info) {
       final isEnabled = profile.enabledPapers[name] ?? true;
       if (isEnabled) {
-        fetchFutures.add(_feedService.fetchFeed(name, info['url']!, info['region']!));
+        fetchFutures.add(feedService.fetchFeed(name, info['url']!, info['region']!));
       }
     });
 

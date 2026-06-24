@@ -31,7 +31,6 @@ class _CollectionsViewState extends State<CollectionsView> {
   @override
   Widget build(BuildContext context) {
     final userVM = Provider.of<UserViewModel>(context);
-    final theme = Theme.of(context);
 
     // Active saved articles (excluding archived ones)
     final savedArticles = userVM.savedArticles.where((a) => a.isSaved && !a.isArchived).toList();
@@ -87,11 +86,11 @@ class _CollectionsViewState extends State<CollectionsView> {
                     itemBuilder: (context, index) {
                       final col = userVM.collections[index];
                       return Card(
-                        color: Color(col.color).withOpacity(0.12),
+                        color: Color(col.color).withValues(alpha: 0.12),
                         elevation: 0.5,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
-                          side: BorderSide(color: Color(col.color).withOpacity(0.5), width: 1.5),
+                          side: BorderSide(color: Color(col.color).withValues(alpha: 0.5), width: 1.5),
                         ),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(16),
@@ -193,7 +192,6 @@ class _CollectionsViewState extends State<CollectionsView> {
   }
 
   Widget _articleListItem(BuildContext context, Article art, UserViewModel userVM, {bool isArchiveItem = false}) {
-    final theme = Theme.of(context);
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
@@ -312,7 +310,6 @@ class CollectionDetailsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final userVM = Provider.of<UserViewModel>(context);
-    final theme = Theme.of(context);
 
     // Get actual articles belonging to this collection
     final articles = userVM.savedArticles.where((a) => collection.articleIds.contains(a.id)).toList();
@@ -338,7 +335,7 @@ class CollectionDetailsView extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(16),
-            color: Color(collection.color).withOpacity(0.1),
+            color: Color(collection.color).withValues(alpha: 0.1),
             child: Row(
               children: [
                 Icon(Icons.folder_rounded, color: Color(collection.color), size: 28),
