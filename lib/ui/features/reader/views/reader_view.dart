@@ -5,6 +5,7 @@ import 'package:newsroom/data/models/article.dart';
 import 'package:newsroom/data/models/highlight.dart';
 import 'package:newsroom/ui/features/profile/view_models/user_view_model.dart';
 import 'package:newsroom/ui/core/themes.dart';
+import 'package:newsroom/ui/core/browser_launcher.dart';
 
 class ReaderView extends StatefulWidget {
   final Article article;
@@ -130,6 +131,12 @@ class _ReaderViewState extends State<ReaderView> {
             style: theme.appBarTheme.titleTextStyle?.copyWith(fontSize: 16),
           ),
           actions: [
+            // Open in Browser
+            IconButton(
+              icon: const Icon(Icons.language_rounded),
+              tooltip: 'Open in Browser',
+              onPressed: () => BrowserLauncher.launchArticle(widget.article.link),
+            ),
             // Text Adjuster (Font Size Slider)
             IconButton(
               icon: const Icon(Icons.format_size_rounded),
@@ -224,6 +231,15 @@ class _ReaderViewState extends State<ReaderView> {
                           style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic, fontSize: 13),
                         ),
                         const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: () => BrowserLauncher.launchArticle(widget.article.link),
+                          icon: const Icon(Icons.open_in_browser_rounded),
+                          label: const Text('Read Original on Website'),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                         OutlinedButton.icon(
                           onPressed: () {
                             Clipboard.setData(ClipboardData(text: widget.article.link));
@@ -232,7 +248,7 @@ class _ReaderViewState extends State<ReaderView> {
                             );
                           },
                           icon: const Icon(Icons.copy_rounded),
-                          label: const Text('Copy Article Link to Clipboard'),
+                          label: const Text('Copy Article Link'),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                           ),
