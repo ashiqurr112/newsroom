@@ -31,11 +31,13 @@ class BrowserLauncher {
 
     // Fallback: Open with default browser
     try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (e) {
-      // Handle fallback failures
+      try {
+        await launchUrl(uri);
+      } catch (e2) {
+        print('Error launching URL: $e2');
+      }
     }
   }
 }

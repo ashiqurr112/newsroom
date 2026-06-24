@@ -15,6 +15,7 @@ class Article {
   final bool isSaved;
   final bool isArchived;
   final DateTime? savedDate;
+  final String? imageUrl;
 
   Article({
     required this.id,
@@ -32,6 +33,7 @@ class Article {
     this.isSaved = false,
     this.isArchived = false,
     this.savedDate,
+    this.imageUrl,
   });
 
   Article copyWith({
@@ -50,6 +52,7 @@ class Article {
     bool? isSaved,
     bool? isArchived,
     DateTime? savedDate,
+    String? imageUrl,
   }) {
     return Article(
       id: id ?? this.id,
@@ -67,6 +70,7 @@ class Article {
       isSaved: isSaved ?? this.isSaved,
       isArchived: isArchived ?? this.isArchived,
       savedDate: savedDate ?? this.savedDate,
+      imageUrl: imageUrl ?? this.imageUrl,
     );
   }
 
@@ -87,6 +91,7 @@ class Article {
       'isSaved': isSaved,
       'isArchived': isArchived,
       'savedDate': savedDate?.toIso8601String(),
+      'imageUrl': imageUrl,
     };
   }
 
@@ -107,6 +112,7 @@ class Article {
       isSaved: json['isSaved'] as bool? ?? false,
       isArchived: json['isArchived'] as bool? ?? false,
       savedDate: json['savedDate'] != null ? DateTime.parse(json['savedDate'] as String) : null,
+      imageUrl: json['imageUrl'] as String?,
     );
   }
 }

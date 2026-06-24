@@ -17,16 +17,18 @@ class ReaderView extends StatefulWidget {
   State<ReaderView> createState() => _ReaderViewState();
 }
 
-class _ReaderViewState extends State<ReaderView> {
+class _ReaderViewState extends State<ReaderView> with WidgetsBindingObserver {
   final ScrollController _scrollController = ScrollController();
   double _scrollProgress = 0.0;
   String? _overriddenTheme; // null, 'light', 'sepia', 'dark'
   List<String>? _fullParagraphs;
   bool _isLoadingFullText = true;
+  String? _fullArticleImageUrl;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onScroll);
     _loadFullText();
   }
@@ -40,17 +42,23 @@ class _ReaderViewState extends State<ReaderView> {
     final userVM = Provider.of<UserViewModel>(context, listen: false);
 
     try {
-      final fullText = await feedRepository.feedService.fetchFullArticle(widget.article.source, widget.article.link);
+      final fullContent = await feedRepository.feedService.fetchFullArticle(widget.article.source, widget.article.link);
 
       if (mounted) {
         setState(() {
-          if (fullText.isNotEmpty) {
-            _fullParagraphs = fullText;
+          if (fullContent.paragraphs.isNotEmpty) {
+            _fullParagraphs = fullContent.paragraphs;
           } else {
             _fullParagraphs = _getParagraphs();
           }
+          _fullArticleImageUrl = fullContent.imageUrl;
           _isLoadingFullText = false;
         });
+
+        // Save the image URL in repository database if fetched
+        if (fullContent.imageUrl != null && widget.article.imageUrl == null) {
+          userVM.updateArticleImageUrl(widget.article, fullContent.imageUrl!);
+        }
 
         // Restore reading progress once full text is loaded and layout is rendered
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -85,12 +93,23 @@ class _ReaderViewState extends State<ReaderView> {
 
   @override
   void dispose() {
-    // Save final read progress when leaving the screen
-    final userVM = Provider.of<UserViewModel>(context, listen: false);
-    userVM.updateArticleProgress(widget.article, _scrollProgress);
+    WidgetsBinding.instance.removeObserver(this);
+    _saveProgress();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _saveProgress();
+    }
+  }
+
+  void _saveProgress() {
+    final userVM = Provider.of<UserViewModel>(context, listen: false);
+    userVM.updateArticleProgress(widget.article, _scrollProgress);
   }
 
   void _onScroll() {
@@ -105,13 +124,10 @@ class _ReaderViewState extends State<ReaderView> {
     if (progress < 0.0) progress = 0.0;
     if (progress > 1.0) progress = 1.0;
     
-    if ((progress - _scrollProgress).abs() > 0.05 || progress >= 0.9) {
+    if ((progress - _scrollProgress).abs() > 0.01) {
       setState(() {
         _scrollProgress = progress;
       });
-      // Save progress
-      final userVM = Provider.of<UserViewModel>(context, listen: false);
-      userVM.updateArticleProgress(widget.article, _scrollProgress);
     }
   }
 
@@ -245,6 +261,30 @@ class _ReaderViewState extends State<ReaderView> {
                         ),
                         const SizedBox(height: 12),
                         const Divider(thickness: 1),
+                        if (widget.article.imageUrl != null || _fullArticleImageUrl != null) ...[
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              widget.article.imageUrl ?? _fullArticleImageUrl!,
+                              width: double.infinity,
+                              height: 220,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Container(
+                                  height: 220,
+                                  color: theme.brightness == Brightness.dark ? Colors.grey.shade900 : Colors.grey.shade100,
+                                  child: const Center(
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                       ],
                     ),
                   );

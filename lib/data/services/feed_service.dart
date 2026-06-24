@@ -1,8 +1,16 @@
+import 'dart:convert';
 import 'package:xml/xml.dart';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' show parse;
 import 'package:html/dom.dart';
 import '../models/article.dart';
+
+class FullArticleContent {
+  final List<String> paragraphs;
+  final String? imageUrl;
+
+  FullArticleContent({required this.paragraphs, this.imageUrl});
+}
 
 class FeedService {
   final http.Client _client;
@@ -13,7 +21,8 @@ class FeedService {
     try {
       final response = await _client.get(Uri.parse(url)).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
-        return parseFeed(sourceName, response.body, region);
+        final decodedBody = utf8.decode(response.bodyBytes, allowMalformed: true);
+        return parseFeed(sourceName, decodedBody, region);
       } else {
         print('Error fetching $sourceName: status code ${response.statusCode}');
       }
@@ -78,6 +87,27 @@ class FeedService {
 
             final id = _generateId(link);
 
+            // Image extraction for RSS
+            String? imageUrl;
+            final mediaContent = item.findElements('media:content');
+            final enclosure = item.findElements('enclosure');
+            final mediaThumbnail = item.findElements('media:thumbnail');
+            
+            if (mediaContent.isNotEmpty) {
+              imageUrl = mediaContent.first.getAttribute('url');
+            } else if (enclosure.isNotEmpty) {
+              imageUrl = enclosure.first.getAttribute('url');
+            } else if (mediaThumbnail.isNotEmpty) {
+              imageUrl = mediaThumbnail.first.getAttribute('url');
+            }
+            
+            if (imageUrl == null && description.isNotEmpty) {
+              final match = RegExp(r'''<img[^>]+src=["']([^"']+)["']''', caseSensitive: false).firstMatch(description);
+              if (match != null) {
+                imageUrl = match.group(1);
+              }
+            }
+
             articles.add(Article(
               id: id,
               title: title,
@@ -89,6 +119,7 @@ class FeedService {
               source: sourceName,
               estimatedReadingTime: estimatedReadingTime,
               region: region,
+              imageUrl: imageUrl,
             ));
           } catch (e) {
             print('Error parsing RSS item for $sourceName: $e');
@@ -140,6 +171,38 @@ class FeedService {
 
             final id = _generateId(link);
 
+            // Image extraction for Atom
+            String? imageUrl;
+            final mediaContent = entry.findElements('media:content');
+            final mediaThumbnail = entry.findElements('media:thumbnail');
+            
+            XmlElement? linkImage;
+            try {
+              final linkImages = entry.findElements('link').where(
+                (e) => e.getAttribute('rel') == 'enclosure' && (e.getAttribute('type')?.startsWith('image/') ?? false),
+              );
+              if (linkImages.isNotEmpty) {
+                linkImage = linkImages.first;
+              }
+            } catch (_) {
+              // Ignore
+            }
+            
+            if (mediaContent.isNotEmpty) {
+              imageUrl = mediaContent.first.getAttribute('url');
+            } else if (mediaThumbnail.isNotEmpty) {
+              imageUrl = mediaThumbnail.first.getAttribute('url');
+            } else if (linkImage != null) {
+              imageUrl = linkImage.getAttribute('href');
+            }
+            
+            if (imageUrl == null && description.isNotEmpty) {
+              final match = RegExp(r'''<img[^>]+src=["']([^"']+)["']''', caseSensitive: false).firstMatch(description);
+              if (match != null) {
+                imageUrl = match.group(1);
+              }
+            }
+
             articles.add(Article(
               id: id,
               title: title,
@@ -151,6 +214,7 @@ class FeedService {
               source: sourceName,
               estimatedReadingTime: estimatedReadingTime,
               region: region,
+              imageUrl: imageUrl,
             ));
           } catch (e) {
             print('Error parsing Atom entry for $sourceName: $e');
@@ -238,7 +302,7 @@ class FeedService {
     return link.hashCode.toString();
   }
 
-  Future<List<String>> fetchFullArticle(String source, String url) async {
+  Future<FullArticleContent> fetchFullArticle(String source, String url) async {
     final Map<String, String> headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -261,36 +325,98 @@ class FeedService {
       headers['X-Forwarded-For'] = '66.249.66.1';
     }
 
+    // Tier 1: Direct Request
     try {
-      final response = await _client.get(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 15));
+      final response = await _client.get(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 12));
       if (response.statusCode == 200) {
-        final paragraphs = extractParagraphs(response.body, source);
-        if (paragraphs.length >= 3) {
-          return paragraphs;
-        }
-      }
-      
-      // Fallback: If it fails or returns too few paragraphs (paywalled), try Google Web Cache!
-      final cacheUrl = 'https://webcache.googleusercontent.com/search?q=cache:$url';
-      final cacheResponse = await _client.get(Uri.parse(cacheUrl), headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      }).timeout(const Duration(seconds: 10));
-      
-      if (cacheResponse.statusCode == 200) {
-        final paragraphs = extractParagraphs(cacheResponse.body, source);
-        if (paragraphs.length >= 3) {
-          return paragraphs;
+        final decodedBody = utf8.decode(response.bodyBytes, allowMalformed: true);
+        final content = extractParagraphsAndImage(decodedBody, source);
+        if (content.paragraphs.length >= 3) {
+          return content;
         }
       }
     } catch (e) {
-      print('Exception fetching full article: $e');
+      print('Exception fetching direct full article: $e');
+    }
+
+    // Tier 2: Txtify Proxy
+    try {
+      final txtifyUrl = 'https://txtify.it/$url';
+      final response = await _client.get(Uri.parse(txtifyUrl)).timeout(const Duration(seconds: 12));
+      if (response.statusCode == 200) {
+        final decodedBody = utf8.decode(response.bodyBytes, allowMalformed: true);
+        final content = extractParagraphsAndImage(decodedBody, source);
+        if (content.paragraphs.length >= 3) {
+          return content;
+        }
+      }
+    } catch (e) {
+      print('Exception fetching via Txtify: $e');
+    }
+
+    // Tier 3: Google Web Cache
+    try {
+      final cacheUrl = 'https://webcache.googleusercontent.com/search?q=cache:$url';
+      final response = await _client.get(Uri.parse(cacheUrl), headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      }).timeout(const Duration(seconds: 10));
+      
+      if (response.statusCode == 200) {
+        final decodedBody = utf8.decode(response.bodyBytes, allowMalformed: true);
+        final content = extractParagraphsAndImage(decodedBody, source);
+        if (content.paragraphs.length >= 3) {
+          return content;
+        }
+      }
+    } catch (e) {
+      print('Exception fetching via Google Web Cache: $e');
+    }
+
+    // Tier 4: Wayback Machine
+    try {
+      final waybackApiUrl = 'https://archive.org/wayback/available?url=${Uri.encodeComponent(url)}';
+      final waybackResponse = await _client.get(Uri.parse(waybackApiUrl)).timeout(const Duration(seconds: 8));
+      if (waybackResponse.statusCode == 200) {
+        final data = json.decode(waybackResponse.body) as Map<String, dynamic>;
+        final closest = data['archived_snapshots']?['closest'];
+        if (closest != null && closest['available'] == true) {
+          final snapshotUrl = closest['url'] as String;
+          // Rewrite snapshot URL to get raw HTML (without toolbar)
+          final rawSnapshotUrl = snapshotUrl.replaceFirst(RegExp(r'/web/(\d+)/'), '/web/\$1id_/');
+          
+          final rawResponse = await _client.get(Uri.parse(rawSnapshotUrl)).timeout(const Duration(seconds: 12));
+          if (rawResponse.statusCode == 200) {
+            final decodedBody = utf8.decode(rawResponse.bodyBytes, allowMalformed: true);
+            final content = extractParagraphsAndImage(decodedBody, source);
+            if (content.paragraphs.length >= 3) {
+              return content;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('Exception fetching via Wayback Machine: $e');
     }
     
-    return []; // Return empty if all fail
+    return FullArticleContent(paragraphs: [], imageUrl: null); // Return empty if all fail
   }
 
-  List<String> extractParagraphs(String htmlString, String source) {
+  FullArticleContent extractParagraphsAndImage(String htmlString, String source) {
     final document = parse(htmlString);
+    
+    // Extract og:image
+    String? imageUrl;
+    final ogImageMeta = document.querySelector('head > meta[property="og:image"]');
+    if (ogImageMeta != null) {
+      imageUrl = ogImageMeta.attributes['content'];
+    }
+    if (imageUrl == null) {
+      final twitterImageMeta = document.querySelector('head > meta[name="twitter:image"]');
+      if (twitterImageMeta != null) {
+        imageUrl = twitterImageMeta.attributes['content'];
+      }
+    }
+
     List<Element> pElements = [];
     
     if (source == 'The New York Times') {
@@ -341,6 +467,10 @@ class FeedService {
       paragraphs.add(text);
     }
     
-    return paragraphs;
+    return FullArticleContent(paragraphs: paragraphs, imageUrl: imageUrl);
+  }
+
+  List<String> extractParagraphs(String htmlString, String source) {
+    return extractParagraphsAndImage(htmlString, source).paragraphs;
   }
 }

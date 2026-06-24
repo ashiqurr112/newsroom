@@ -7,7 +7,7 @@ void main() {
 
     test('Parses RSS 2.0 Opinion Feed successfully', () {
       const rssContent = '''<?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/">
   <channel>
     <title>NYT Opinion</title>
     <link>https://www.nytimes.com/section/opinion</link>
@@ -18,6 +18,7 @@ void main() {
       <description>&lt;p&gt;Artificial intelligence is evolving rapidly. &lt;b&gt;Here is what it means.&lt;/b&gt;&lt;/p&gt;</description>
       <dc:creator>John Doe</dc:creator>
       <pubDate>Wed, 24 Jun 2026 12:00:00 GMT</pubDate>
+      <media:content url="https://images.com/ai-future.jpg" />
     </item>
   </channel>
 </rss>''';
@@ -31,6 +32,7 @@ void main() {
       expect(articles[0].contentSnippet, 'Artificial intelligence is evolving rapidly. Here is what it means.');
       expect(articles[0].source, 'The New York Times');
       expect(articles[0].region, 'US');
+      expect(articles[0].imageUrl, 'https://images.com/ai-future.jpg');
     });
 
     test('Parses Atom Feed successfully', () {
@@ -40,6 +42,7 @@ void main() {
   <entry>
     <title>Climate Action Now</title>
     <link href="https://www.theguardian.com/climate"/>
+    <link rel="enclosure" type="image/jpeg" href="https://images.com/climate.jpg"/>
     <summary>We must take action against carbon emissions.</summary>
     <author>
       <name>Jane Smith</name>
@@ -56,6 +59,7 @@ void main() {
       expect(articles[0].author, 'Jane Smith');
       expect(articles[0].contentSnippet, 'We must take action against carbon emissions.');
       expect(articles[0].region, 'Europe');
+      expect(articles[0].imageUrl, 'https://images.com/climate.jpg');
     });
 
     test('Strips HTML and decodes entities correctly', () {

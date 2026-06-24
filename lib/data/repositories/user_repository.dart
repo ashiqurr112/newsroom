@@ -117,13 +117,41 @@ class UserRepository {
     final wasCompletedBefore = article.readProgress >= 0.9;
     final isCompletedNow = progress >= 0.9;
 
-    if (_savedArticles.any((a) => a.id == article.id)) {
-      _savedArticles = _savedArticles.map((a) => a.id == article.id ? a.copyWith(readProgress: progress) : a).toList();
-      await _storageService.saveSavedArticles(_savedArticles);
+    bool found = false;
+    _savedArticles = _savedArticles.map((a) {
+      if (a.id == article.id) {
+        found = true;
+        return a.copyWith(readProgress: progress);
+      }
+      return a;
+    }).toList();
+
+    if (!found) {
+      _savedArticles.add(article.copyWith(
+        readProgress: progress,
+        savedDate: DateTime.now(),
+      ));
     }
+
+    await _storageService.saveSavedArticles(_savedArticles);
 
     if (isCompletedNow && !wasCompletedBefore) {
       await recordReadActivity();
+    }
+  }
+
+  Future<void> updateArticleImageUrl(Article article, String imageUrl) async {
+    bool changed = false;
+    _savedArticles = _savedArticles.map((a) {
+      if (a.id == article.id && a.imageUrl == null) {
+        changed = true;
+        return a.copyWith(imageUrl: imageUrl);
+      }
+      return a;
+    }).toList();
+
+    if (changed) {
+      await _storageService.saveSavedArticles(_savedArticles);
     }
   }
 

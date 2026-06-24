@@ -247,6 +247,7 @@ class _FeedViewState extends State<FeedView> {
                                 final isSaved = userVM.savedArticles.any((a) => a.id == article.id && a.isSaved);
                                 final isReadLater = userVM.savedArticles.any((a) => a.id == article.id && a.isReadLater);
                                 final savedVer = userVM.savedArticles.firstWhere((a) => a.id == article.id, orElse: () => article);
+                                final imageUrl = savedVer.imageUrl ?? article.imageUrl;
                                 
                                 return Card(
                                   margin: const EdgeInsets.only(bottom: 16),
@@ -258,141 +259,167 @@ class _FeedViewState extends State<FeedView> {
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
-                                          builder: (context) => ReaderView(article: article),
+                                          builder: (context) => ReaderView(article: savedVer),
                                         ),
                                       );
                                     },
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(16.0),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              // Source Badge
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                decoration: BoxDecoration(
-                                                  color: getSourceColor(article.source),
-                                                  borderRadius: BorderRadius.circular(6),
-                                                ),
-                                                child: Text(
-                                                  article.source,
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w800,
-                                                    fontFamily: 'sans-serif',
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        if (imageUrl != null)
+                                          ClipRRect(
+                                            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                                            child: Image.network(
+                                              imageUrl,
+                                              height: 180,
+                                              width: double.infinity,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                                              loadingBuilder: (context, child, loadingProgress) {
+                                                if (loadingProgress == null) return child;
+                                                return Container(
+                                                  height: 180,
+                                                  color: theme.brightness == Brightness.dark ? Colors.grey.shade900 : Colors.grey.shade100,
+                                                  child: const Center(
+                                                    child: CircularProgressIndicator(strokeWidth: 2),
                                                   ),
-                                                ),
-                                              ),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        Padding(
+                                          padding: const EdgeInsets.all(16.0),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
                                               Row(
+                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                                 children: [
-                                                  const Icon(Icons.timer_outlined, size: 14, color: Colors.grey),
-                                                  const SizedBox(width: 4),
-                                                  Text(
-                                                    '${article.estimatedReadingTime} min read',
-                                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                                  // Source Badge
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                    decoration: BoxDecoration(
+                                                      color: getSourceColor(article.source),
+                                                      borderRadius: BorderRadius.circular(6),
+                                                    ),
+                                                    child: Text(
+                                                      article.source,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 10,
+                                                        fontWeight: FontWeight.w800,
+                                                        fontFamily: 'sans-serif',
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Row(
+                                                    children: [
+                                                      const Icon(Icons.timer_outlined, size: 14, color: Colors.grey),
+                                                      const SizedBox(width: 4),
+                                                      Text(
+                                                        '${article.estimatedReadingTime} min read',
+                                                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                                      ),
+                                                    ],
                                                   ),
                                                 ],
                                               ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 12),
-                                          Text(
-                                            article.title,
-                                            style: theme.textTheme.titleLarge?.copyWith(
-                                              fontSize: 20,
-                                              height: 1.3,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            article.author,
-                                            style: const TextStyle(
-                                              fontStyle: FontStyle.italic,
-                                              color: Colors.grey,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            article.contentSnippet,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: theme.textTheme.bodyMedium?.copyWith(
-                                              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.8),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 12),
-                                          
-                                          // Progress indicator
-                                          if (savedVer.readProgress > 0.0 && savedVer.readProgress < 0.9) ...[
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: LinearProgressIndicator(
-                                                    value: savedVer.readProgress,
-                                                    borderRadius: BorderRadius.circular(4),
-                                                    minHeight: 4,
-                                                    color: theme.primaryColor,
-                                                    backgroundColor: theme.primaryColor.withValues(alpha: 0.15),
-                                                  ),
+                                              const SizedBox(height: 12),
+                                              Text(
+                                                article.title,
+                                                style: theme.textTheme.titleLarge?.copyWith(
+                                                  fontSize: 20,
+                                                  height: 1.3,
                                                 ),
-                                                const SizedBox(width: 8),
-                                                Text(
-                                                  '${(savedVer.readProgress * 100).toInt()}% read',
-                                                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                article.author,
+                                                style: const TextStyle(
+                                                  fontStyle: FontStyle.italic,
+                                                  color: Colors.grey,
+                                                  fontSize: 13,
                                                 ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                article.contentSnippet,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: theme.textTheme.bodyMedium?.copyWith(
+                                                  color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.8),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 12),
+                                              
+                                              // Progress indicator
+                                              if (savedVer.readProgress > 0.0 && savedVer.readProgress < 0.9) ...[
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: LinearProgressIndicator(
+                                                        value: savedVer.readProgress,
+                                                        borderRadius: BorderRadius.circular(4),
+                                                        minHeight: 4,
+                                                        color: theme.primaryColor,
+                                                        backgroundColor: theme.primaryColor.withValues(alpha: 0.15),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Text(
+                                                      '${(savedVer.readProgress * 100).toInt()}% read',
+                                                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 12),
                                               ],
-                                            ),
-                                            const SizedBox(height: 12),
-                                          ],
 
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.end,
-                                            children: [
-                                              IconButton(
-                                                icon: Icon(
-                                                  isReadLater ? Icons.watch_later_rounded : Icons.watch_later_outlined,
-                                                  color: isReadLater ? theme.primaryColor : Colors.grey,
-                                                ),
-                                                tooltip: 'Read Later',
-                                                onPressed: () {
-                                                  userVM.toggleReadLater(article, !isReadLater);
-                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                    SnackBar(
-                                                      content: Text(!isReadLater ? 'Added to Read Later' : 'Removed from Read Later'),
-                                                      duration: const Duration(seconds: 1),
+                                              Row(
+                                                mainAxisAlignment: MainAxisAlignment.end,
+                                                children: [
+                                                  IconButton(
+                                                    icon: Icon(
+                                                      isReadLater ? Icons.watch_later_rounded : Icons.watch_later_outlined,
+                                                      color: isReadLater ? theme.primaryColor : Colors.grey,
                                                     ),
-                                                  );
-                                                },
-                                              ),
-                                              IconButton(
-                                                icon: Icon(
-                                                  isSaved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
-                                                  color: isSaved ? theme.primaryColor : Colors.grey,
-                                                ),
-                                                tooltip: 'Save Article',
-                                                onPressed: () {
-                                                  if (isSaved) {
-                                                    userVM.unsaveArticle(article.id);
-                                                  } else {
-                                                    userVM.saveArticle(article);
-                                                  }
-                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                    SnackBar(
-                                                      content: Text(isSaved ? 'Article unsaved' : 'Article saved to bookmarks'),
-                                                      duration: const Duration(seconds: 1),
+                                                    tooltip: 'Read Later',
+                                                    onPressed: () {
+                                                      userVM.toggleReadLater(article, !isReadLater);
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        SnackBar(
+                                                          content: Text(!isReadLater ? 'Added to Read Later' : 'Removed from Read Later'),
+                                                          duration: const Duration(seconds: 1),
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                                  IconButton(
+                                                    icon: Icon(
+                                                      isSaved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
+                                                      color: isSaved ? theme.primaryColor : Colors.grey,
                                                     ),
-                                                  );
-                                                },
-                                              ),
+                                                    tooltip: 'Save Article',
+                                                    onPressed: () {
+                                                      if (isSaved) {
+                                                        userVM.unsaveArticle(article.id);
+                                                      } else {
+                                                        userVM.saveArticle(article);
+                                                      }
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        SnackBar(
+                                                          content: Text(isSaved ? 'Article unsaved' : 'Article saved to bookmarks'),
+                                                          duration: const Duration(seconds: 1),
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                                ],
+                                              )
                                             ],
-                                          )
-                                        ],
-                                      ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 );
