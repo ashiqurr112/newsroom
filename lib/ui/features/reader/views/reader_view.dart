@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:newsroom/data/models/article.dart';
 import 'package:newsroom/data/models/highlight.dart';
+import 'package:newsroom/data/services/feed_service.dart';
 import 'package:newsroom/ui/features/profile/view_models/user_view_model.dart';
 import 'package:newsroom/ui/features/feed/view_models/feed_view_model.dart';
 import 'package:newsroom/ui/core/themes.dart';

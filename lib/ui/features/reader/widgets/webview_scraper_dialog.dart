@@ -162,10 +162,11 @@ class _WebViewScraperDialogState extends State<WebViewScraperDialog> {
         })()
       ''';
 
-      final responseJsonStr = await _controller.runJavaScriptReturningResult(jsScript);
+      final Object responseJsonObj = await _controller.runJavaScriptReturningResult(jsScript);
+      final responseJsonStr = responseJsonObj.toString();
       
       // runJavaScriptReturningResult returns wrapped string (e.g. '"{\\"status\\":...}"' or 'null')
-      if (responseJsonStr == null || responseJsonStr == 'null') return;
+      if (responseJsonStr == 'null' || responseJsonStr.isEmpty) return;
       
       // Clean string wrapper
       String cleanJson = responseJsonStr;
