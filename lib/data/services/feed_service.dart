@@ -547,6 +547,18 @@ class FeedService {
           }
         }
       }
+      if (img.parent != null && img.parent!.localName == 'picture') {
+        for (final source in img.parent!.querySelectorAll('source')) {
+          final srcset = source.attributes['srcset']?.trim();
+          if (srcset != null && srcset.isNotEmpty) {
+            final parts = srcset.split(',');
+            if (parts.isNotEmpty) {
+              final firstUrl = parts.first.trim().split(' ').first;
+              if (firstUrl.isNotEmpty) return firstUrl;
+            }
+          }
+        }
+      }
       return attrs['src']?.trim();
     }
 

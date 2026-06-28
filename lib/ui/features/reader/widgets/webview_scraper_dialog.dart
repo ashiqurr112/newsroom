@@ -143,6 +143,15 @@ class _WebViewScraperDialogState extends State<WebViewScraperDialog> {
                 }
               } else if (tag === 'img') {
                 var src = node.getAttribute('src') || node.getAttribute('currentsourceurl') || node.getAttribute('old-src');
+                if (!src && node.parentElement && node.parentElement.tagName.toLowerCase() === 'picture') {
+                  var sourceNode = node.parentElement.querySelector('source');
+                  if (sourceNode) {
+                    src = sourceNode.getAttribute('srcset') || sourceNode.getAttribute('src');
+                    if (src && src.includes(',')) {
+                      src = src.split(',')[0].trim().split(' ')[0];
+                    }
+                  }
+                }
                 if (src) {
                   if (src.startsWith('//')) {
                     src = window.location.protocol + src;
