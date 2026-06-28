@@ -143,8 +143,15 @@ class _WebViewScraperDialogState extends State<WebViewScraperDialog> {
                 }
               } else if (tag === 'img') {
                 var src = node.getAttribute('src') || node.getAttribute('currentsourceurl') || node.getAttribute('old-src');
-                if (src && src.startsWith('http')) {
-                  blocks.push({type: 'image', value: src});
+                if (src) {
+                  if (src.startsWith('//')) {
+                    src = window.location.protocol + src;
+                  } else if (src.startsWith('/')) {
+                    src = window.location.protocol + '//' + window.location.host + src;
+                  }
+                  if (src.startsWith('http')) {
+                    blocks.push({type: 'image', value: src});
+                  }
                 }
               }
             }
@@ -153,6 +160,9 @@ class _WebViewScraperDialogState extends State<WebViewScraperDialog> {
             var ogImage = document.querySelector('meta[property="og:image"]');
             if (ogImage) {
               imageUrl = ogImage.getAttribute('content');
+            }
+            if (imageUrl && imageUrl.startsWith('/')) {
+              imageUrl = window.location.protocol + '//' + window.location.host + imageUrl;
             }
             
             if (blocks.length > 0) {

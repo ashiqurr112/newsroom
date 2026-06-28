@@ -329,7 +329,7 @@ class FeedService {
       if (response.statusCode == 200) {
         final decodedBody = utf8.decode(response.bodyBytes, allowMalformed: true);
         if (!isPaywalled(decodedBody, source)) {
-          final content = extractBodyContentAndHeaderImage(decodedBody, source);
+          final content = extractBodyContentAndHeaderImage(decodedBody, source, url);
           final textBlocks = content.bodyContent.where((b) => b.type == 'text').toList();
           if (textBlocks.length >= 3) {
             return content;
@@ -347,7 +347,7 @@ class FeedService {
       if (response.statusCode == 200) {
         final decodedBody = utf8.decode(response.bodyBytes, allowMalformed: true);
         if (!isPaywalled(decodedBody, source)) {
-          final content = extractBodyContentAndHeaderImage(decodedBody, source);
+          final content = extractBodyContentAndHeaderImage(decodedBody, source, url);
           final textBlocks = content.bodyContent.where((b) => b.type == 'text').toList();
           if (textBlocks.length >= 3) {
             return content;
@@ -367,7 +367,7 @@ class FeedService {
       if (response.statusCode == 200) {
         final decodedBody = utf8.decode(response.bodyBytes, allowMalformed: true);
         if (!isPaywalled(decodedBody, source)) {
-          final content = extractBodyContentAndHeaderImage(decodedBody, source);
+          final content = extractBodyContentAndHeaderImage(decodedBody, source, url);
           final textBlocks = content.bodyContent.where((b) => b.type == 'text').toList();
           if (textBlocks.length >= 3) {
             return content;
@@ -388,7 +388,7 @@ class FeedService {
       if (response.statusCode == 200) {
         final decodedBody = utf8.decode(response.bodyBytes, allowMalformed: true);
         if (!isPaywalled(decodedBody, source)) {
-          final content = extractBodyContentAndHeaderImage(decodedBody, source);
+          final content = extractBodyContentAndHeaderImage(decodedBody, source, url);
           final textBlocks = content.bodyContent.where((b) => b.type == 'text').toList();
           if (textBlocks.length >= 3) {
             return content;
@@ -415,7 +415,7 @@ class FeedService {
           if (rawResponse.statusCode == 200) {
             final decodedBody = utf8.decode(rawResponse.bodyBytes, allowMalformed: true);
             if (!isPaywalled(decodedBody, source)) {
-              final content = extractBodyContentAndHeaderImage(decodedBody, source);
+              final content = extractBodyContentAndHeaderImage(decodedBody, source, url);
               final textBlocks = content.bodyContent.where((b) => b.type == 'text').toList();
               if (textBlocks.length >= 3) {
                 return content;
@@ -481,7 +481,7 @@ class FeedService {
     return false;
   }
 
-  List<ArticleContentBlock> extractBodyContent(String htmlString, String source) {
+  List<ArticleContentBlock> extractBodyContent(String htmlString, String source, [String? articleUrl]) {
     final document = parse(htmlString);
     List<Element> containers = [];
 
@@ -586,6 +586,11 @@ class FeedService {
             var fullSrc = src;
             if (src.startsWith('//')) {
               fullSrc = 'https:$src';
+            } else if (src.startsWith('/') && articleUrl != null && articleUrl.isNotEmpty) {
+              try {
+                final uri = Uri.parse(articleUrl);
+                fullSrc = '${uri.scheme}://${uri.host}$src';
+              } catch (_) {}
             }
             if (!processedImages.contains(fullSrc)) {
               processedImages.add(fullSrc);
@@ -610,7 +615,7 @@ class FeedService {
     return blocks;
   }
 
-  FullArticleContent extractBodyContentAndHeaderImage(String htmlString, String source) {
+  FullArticleContent extractBodyContentAndHeaderImage(String htmlString, String source, [String? articleUrl]) {
     final document = parse(htmlString);
     String? imageUrl;
     final ogImageMeta = document.querySelector('head > meta[property="og:image"]');
@@ -623,8 +628,14 @@ class FeedService {
         imageUrl = twitterImageMeta.attributes['content'];
       }
     }
+    if (imageUrl != null && imageUrl.startsWith('/') && articleUrl != null && articleUrl.isNotEmpty) {
+      try {
+        final uri = Uri.parse(articleUrl);
+        imageUrl = '${uri.scheme}://${uri.host}$imageUrl';
+      } catch (_) {}
+    }
 
-    final bodyContent = extractBodyContent(htmlString, source);
+    final bodyContent = extractBodyContent(htmlString, source, articleUrl);
 
     if (imageUrl == null || imageUrl.isEmpty) {
       for (final block in bodyContent) {
