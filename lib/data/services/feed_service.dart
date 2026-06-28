@@ -549,7 +549,7 @@ class FeedService {
     }
 
     void traverse(Element element) {
-      final elements = element.querySelectorAll('p, img');
+      final elements = element.querySelectorAll('p, img, h2, h3, h4');
       for (final elem in elements) {
         if (_isUnwantedBlock(elem)) continue;
         if (elem.localName == 'p') {
@@ -571,6 +571,14 @@ class FeedService {
           if (!processedTexts.contains(text)) {
             processedTexts.add(text);
             blocks.add(ArticleContentBlock(type: 'text', value: text));
+          }
+        } else if (elem.localName == 'h2' || elem.localName == 'h3' || elem.localName == 'h4') {
+          final text = elem.text.trim();
+          if (text.isEmpty) continue;
+          if (text.length > 100) continue;
+          if (!processedTexts.contains(text)) {
+            processedTexts.add(text);
+            blocks.add(ArticleContentBlock(type: 'heading', value: text));
           }
         } else if (elem.localName == 'img') {
           final src = getActualSrc(elem);

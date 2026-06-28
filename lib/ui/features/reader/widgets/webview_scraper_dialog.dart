@@ -123,19 +123,25 @@ class _WebViewScraperDialogState extends State<WebViewScraperDialog> {
           
           if (container && container.innerText.trim().length > 150) {
             var blocks = [];
-            var elements = container.querySelectorAll('p, figure img, div[style*="article-body"] p, div.n-layout__row--content p');
+            var elements = container.querySelectorAll('p, figure img, div[style*="article-body"] p, div.n-layout__row--content p, h2, h3, h4');
             if (elements.length === 0) {
-              elements = container.querySelectorAll('p, img');
+              elements = container.querySelectorAll('p, img, h2, h3, h4');
             }
             
             for (var j = 0; j < elements.length; j++) {
               var node = elements[j];
-              if (node.tagName.toLowerCase() === 'p') {
+              var tag = node.tagName.toLowerCase();
+              if (tag === 'p') {
                 var text = node.innerText.trim();
                 if (text.length > 10) {
                   blocks.push({type: 'text', value: text});
                 }
-              } else if (node.tagName.toLowerCase() === 'img') {
+              } else if (tag === 'h2' || tag === 'h3' || tag === 'h4') {
+                var text = node.innerText.trim();
+                if (text.length > 0 && text.length < 100) {
+                  blocks.push({type: 'heading', value: text});
+                }
+              } else if (tag === 'img') {
                 var src = node.getAttribute('src') || node.getAttribute('currentsourceurl') || node.getAttribute('old-src');
                 if (src && src.startsWith('http')) {
                   blocks.push({type: 'image', value: src});

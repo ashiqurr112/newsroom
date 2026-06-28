@@ -432,6 +432,20 @@ class _ReaderViewState extends State<ReaderView> with WidgetsBindingObserver {
                       ),
                     );
                   }
+                  
+                  if (block.type == 'heading') {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 24.0, bottom: 12.0),
+                      child: Text(
+                        block.value,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontSize: userVM.fontSize + 2,
+                          fontWeight: FontWeight.bold,
+                          height: 1.3,
+                        ),
+                      ),
+                    );
+                  }
   
                   // Paragraph Text block item
                   final paragraphText = block.value;
