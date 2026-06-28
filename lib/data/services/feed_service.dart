@@ -506,6 +506,11 @@ class FeedService {
       containers = document.querySelectorAll('div[itemprop="articleBody"], div.entry-content');
     } else if (source == 'Project Syndicate') {
       containers = document.querySelectorAll('div.article__abs, div.article__body');
+    } else if (source == 'The Daily Star') {
+      containers = document.querySelectorAll('div[class*="block-field-blocknodenewsbody"], span.clearfix.text-formatted');
+      if (containers.isEmpty) {
+        containers = document.querySelectorAll('article');
+      }
     }
 
     if (containers.isEmpty) {
@@ -582,6 +587,12 @@ class FeedService {
           )) {
             continue;
           }
+          if (source == 'The Daily Star' && (
+              text.contains("Google News channel") ||
+              text == "Read More"
+          )) {
+            continue;
+          }
           if (!processedTexts.contains(text)) {
             processedTexts.add(text);
             blocks.add(ArticleContentBlock(type: 'text', value: text));
@@ -590,6 +601,12 @@ class FeedService {
           final text = elem.text.trim();
           if (text.isEmpty) continue;
           if (text.length > 100) continue;
+          if (source == 'The Daily Star' && (
+              text.contains("Google News channel") ||
+              text == "Read More"
+          )) {
+            continue;
+          }
           if (!processedTexts.contains(text)) {
             processedTexts.add(text);
             blocks.add(ArticleContentBlock(type: 'heading', value: text));
@@ -605,6 +622,9 @@ class FeedService {
                 final uri = Uri.parse(articleUrl);
                 fullSrc = '${uri.scheme}://${uri.host}$src';
               } catch (_) {}
+            }
+            if (fullSrc.contains('google_news.svg')) {
+              continue;
             }
             if (!processedImages.contains(fullSrc)) {
               processedImages.add(fullSrc);

@@ -44,6 +44,10 @@ class FeedRepository {
       'url': 'https://www.aljazeera.com/xml/rss/all.xml',
       'region': 'South Asia',
     },
+    'The Daily Star': {
+      'url': 'https://www.thedailystar.net/rss.xml',
+      'region': 'South Asia',
+    },
   };
 
   List<Article> _cachedArticles = [];
