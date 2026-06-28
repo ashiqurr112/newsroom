@@ -66,7 +66,7 @@ class _ReaderViewState extends State<ReaderView> with WidgetsBindingObserver {
       var fullContent = await feedRepository.feedService.fetchFullArticle(widget.article.source, widget.article.link);
 
       // If direct request returned empty (due to paywall or Cloudflare block), fall back to client-side WebView scraper
-      if (fullContent.bodyContent.isEmpty && (widget.article.source == 'Financial Times' || widget.article.source == 'The Wall Street Journal')) {
+      if (fullContent.bodyContent.isEmpty && (widget.article.source == 'Financial Times' || widget.article.source == 'The Wall Street Journal' || widget.article.source == 'The Economist')) {
         if (mounted) {
           final webViewResult = await showDialog<FullArticleContent>(
             context: context,

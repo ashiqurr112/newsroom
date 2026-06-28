@@ -455,7 +455,7 @@ class FeedService {
     var current = element.parent;
     while (current != null) {
       final tag = current.localName?.toLowerCase();
-      if (tag == 'aside' || tag == 'footer' || tag == 'header' || tag == 'nav') {
+      if (tag == 'aside' || tag == 'footer' || tag == 'header' || tag == 'nav' || tag == 'audio' || tag == 'video') {
         return true;
       }
       for (final cls in current.classes) {
