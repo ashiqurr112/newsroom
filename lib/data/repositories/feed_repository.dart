@@ -12,10 +12,6 @@ class FeedRepository {
       'url': 'https://rss.nytimes.com/services/xml/rss/nyt/Opinion.xml',
       'region': 'US',
     },
-    'The Wall Street Journal': {
-      'url': 'https://feeds.a.dj.com/rss/RSSOpinion.xml',
-      'region': 'US',
-    },
     'Financial Times': {
       'url': 'https://www.ft.com/opinion?format=rss',
       'region': 'Europe',

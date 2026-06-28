@@ -95,5 +95,79 @@ void main() {
       final articles = feedService.parseFeed('Test Source', withWords, 'Global');
       expect(articles[0].estimatedReadingTime, 3); // Ceil(410/200) = 3
     });
+
+    test('Extracts Project Syndicate article body and excludes promotions/bios', () {
+      const htmlContent = '''
+<!DOCTYPE html>
+<html>
+<body>
+  <div class="article__abs u-mt-se">
+    <p>For a brief period after the Cold War, Americans persuaded themselves...</p>
+  </div>
+  <div class="article__body article__body--commentary english">
+    <p>LONDON—This is the first actual paragraph of the article.</p>
+    <aside class="inlay inlay--slide slide__container editorpick-container mrf mrf-editorpicks">
+      <div class="article-card__excerpt">
+        <p>This is a recommended article description that should be excluded.</p>
+      </div>
+    </aside>
+    <p>This is the second actual paragraph of the article.</p>
+    <div class="listing special inlay special--generic mrf mrf--promotion">
+      <p>This is a registration promotion that should be excluded.</p>
+    </div>
+    <p>This is the third actual paragraph of the article.</p>
+  </div>
+  <div class="u-mb" data-id="some-author">
+    <p>Author Biography paragraph that should be excluded because it is outside article__body.</p>
+  </div>
+</body>
+</html>
+''';
+
+      final content = feedService.extractBodyContent(htmlContent, 'Project Syndicate');
+      final textBlocks = content.where((b) => b.type == 'text').toList();
+
+      expect(textBlocks.length, 4);
+      expect(textBlocks[0].value, 'For a brief period after the Cold War, Americans persuaded themselves...');
+      expect(textBlocks[1].value, 'LONDON—This is the first actual paragraph of the article.');
+      expect(textBlocks[2].value, 'This is the second actual paragraph of the article.');
+      expect(textBlocks[3].value, 'This is the third actual paragraph of the article.');
+    });
+
+    test('Extracts BBC article body and excludes promotions while retaining content within ContainerWithSidebarWrapper', () {
+      const htmlContent = '''
+<!DOCTYPE html>
+<html>
+<body>
+  <div class="ssrcss-js09yk-ContainerWithSidebarWrapper">
+    <article class="ssrcss-2fe4mx-ArticleWrapper">
+      <div class="ssrcss-nqezkk-RichTextContainer">
+        <p>This is the first paragraph of the BBC article.</p>
+      </div>
+      <figure class="ssrcss-hc6arm-StyledFigure">
+        <img src="https://ichef.bbci.co.uk/image1.jpg" />
+      </figure>
+      <div class="ssrcss-nqezkk-RichTextContainer">
+        <p>This is the second paragraph of the BBC article.</p>
+        <div class="ssrcss-5gf2d0-PromoLink">
+          <p>This is an inline related article promo that should be excluded.</p>
+        </div>
+      </div>
+    </article>
+  </div>
+</body>
+</html>
+''';
+
+      final content = feedService.extractBodyContent(htmlContent, 'BBC');
+      
+      expect(content.length, 3);
+      expect(content[0].type, 'text');
+      expect(content[0].value, 'This is the first paragraph of the BBC article.');
+      expect(content[1].type, 'image');
+      expect(content[1].value, 'https://ichef.bbci.co.uk/image1.jpg');
+      expect(content[2].type, 'text');
+      expect(content[2].value, 'This is the second paragraph of the BBC article.');
+    });
   });
 }

@@ -7,6 +7,7 @@ import 'package:newsroom/ui/features/profile/view_models/user_view_model.dart';
 import 'package:newsroom/ui/features/feed/view_models/feed_view_model.dart';
 import 'package:newsroom/ui/core/themes.dart';
 import 'package:newsroom/ui/core/browser_launcher.dart';
+import 'package:newsroom/ui/features/reader/widgets/webview_scraper_dialog.dart';
 
 class ReaderView extends StatefulWidget {
   final Article article;
@@ -61,7 +62,24 @@ class _ReaderViewState extends State<ReaderView> with WidgetsBindingObserver {
     }
 
     try {
-      final fullContent = await feedRepository.feedService.fetchFullArticle(widget.article.source, widget.article.link);
+      var fullContent = await feedRepository.feedService.fetchFullArticle(widget.article.source, widget.article.link);
+
+      // If direct request returned empty (due to paywall or Cloudflare block), fall back to client-side WebView scraper
+      if (fullContent.bodyContent.isEmpty && (widget.article.source == 'Financial Times' || widget.article.source == 'The Wall Street Journal')) {
+        if (mounted) {
+          final webViewResult = await showDialog<FullArticleContent>(
+            context: context,
+            barrierDismissible: true,
+            builder: (context) => WebViewScraperDialog(
+              articleUrl: widget.article.link,
+              source: widget.article.source,
+            ),
+          );
+          if (webViewResult != null && webViewResult.bodyContent.isNotEmpty) {
+            fullContent = webViewResult;
+          }
+        }
+      }
 
       if (mounted) {
         List<ArticleContentBlock> blocks = [];

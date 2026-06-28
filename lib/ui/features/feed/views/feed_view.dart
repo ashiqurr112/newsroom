@@ -41,8 +41,6 @@ class _FeedViewState extends State<FeedView> {
     switch (source) {
       case 'The New York Times':
         return const Color(0xFF1A1A1A);
-      case 'The Wall Street Journal':
-        return const Color(0xFF0F2537);
       case 'Financial Times':
         return const Color(0xFF381519);
       case 'The Times':

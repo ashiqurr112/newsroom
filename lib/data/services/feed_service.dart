@@ -312,9 +312,6 @@ class FeedService {
 
     if (source == 'The New York Times') {
       headers['User-Agent'] = 'Mozilla/5.0 (compatible; Google-InspectionTool/1.0)';
-    } else if (source == 'The Wall Street Journal') {
-      headers['Referer'] = 'https://www.drudgereport.com/';
-      headers['User-Agent'] = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
     } else if (source == 'Financial Times') {
       headers['Referer'] = 'https://www.google.com/';
       headers['User-Agent'] = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
@@ -436,9 +433,7 @@ class FeedService {
 
   bool isPaywalled(String html, String source) {
     final document = parse(html);
-    if (source == 'The Wall Street Journal') {
-      return document.querySelector('.snippet-promotion, div[id*="-snippet-overlay"], .wsj-snippet-body') != null;
-    } else if (source == 'Financial Times') {
+    if (source == 'Financial Times') {
       return document.querySelector('div#barrier-page') != null || html.contains('barrier-page');
     } else if (source == 'The New York Times') {
       return document.querySelector('div#gateway-content') != null || html.contains('gateway-content');
@@ -456,14 +451,42 @@ class FeedService {
     return false;
   }
 
+  bool _isUnwantedBlock(Element element) {
+    var current = element.parent;
+    while (current != null) {
+      final tag = current.localName?.toLowerCase();
+      if (tag == 'aside' || tag == 'footer' || tag == 'header' || tag == 'nav') {
+        return true;
+      }
+      for (final cls in current.classes) {
+        final c = cls.toLowerCase();
+        if (c.contains('promo') ||
+            c.contains('newsletter') ||
+            c.contains('editorpick') ||
+            c.contains('inlay') ||
+            c.contains('social') ||
+            c.contains('share') ||
+            c.contains('byline') ||
+            c.contains('author') ||
+            c.contains('bio') ||
+            (c.contains('sidebar') && !c.contains('wrapper') && !c.contains('container')) ||
+            c.contains('widget') ||
+            (c.contains('comment') && !c.contains('commentary')) ||
+            c.contains('related')) {
+          return true;
+        }
+      }
+      current = current.parent;
+    }
+    return false;
+  }
+
   List<ArticleContentBlock> extractBodyContent(String htmlString, String source) {
     final document = parse(htmlString);
     List<Element> containers = [];
 
     if (source == 'The New York Times') {
       containers = document.querySelectorAll('section[name="articleBody"], div.StoryBodyCompanionColumn, .story-body-text');
-    } else if (source == 'The Wall Street Journal') {
-      containers = document.querySelectorAll('article section, div.wsj-snippet-body');
     } else if (source == 'Financial Times') {
       containers = document.querySelectorAll('div[class*="article-body"], div.n-layout__row--content');
     } else if (source == 'The Economist') {
@@ -476,6 +499,8 @@ class FeedService {
       containers = document.querySelectorAll('article, div[class*="RichTextContainer"]');
     } else if (source == 'The Conversation') {
       containers = document.querySelectorAll('div[itemprop="articleBody"], div.entry-content');
+    } else if (source == 'Project Syndicate') {
+      containers = document.querySelectorAll('div.article__abs, div.article__body');
     }
 
     if (containers.isEmpty) {
@@ -523,6 +548,7 @@ class FeedService {
     void traverse(Element element) {
       final elements = element.querySelectorAll('p, img');
       for (final elem in elements) {
+        if (_isUnwantedBlock(elem)) continue;
         if (elem.localName == 'p') {
           final text = elem.text.trim();
           if (text.isEmpty) continue;
@@ -589,6 +615,24 @@ class FeedService {
           break;
         }
       }
+    } else {
+      // Prevent duplicate rendering of the header image at the beginning of the body blocks
+      bodyContent.removeWhere((block) {
+        if (block.type == 'image') {
+          final imgUrl = block.value;
+          if (imgUrl == imageUrl) return true;
+          try {
+            final uri1 = Uri.parse(imageUrl!);
+            final uri2 = Uri.parse(imgUrl);
+            if (uri1.pathSegments.isNotEmpty && uri2.pathSegments.isNotEmpty) {
+              if (uri1.pathSegments.last == uri2.pathSegments.last) {
+                return true;
+              }
+            }
+          } catch (_) {}
+        }
+        return false;
+      });
     }
 
     return FullArticleContent(bodyContent: bodyContent, imageUrl: imageUrl);
