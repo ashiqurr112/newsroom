@@ -490,7 +490,10 @@ class FeedService {
     } else if (source == 'Financial Times') {
       containers = document.querySelectorAll('div[class*="article-body"], div.n-layout__row--content');
     } else if (source == 'The Economist') {
-      containers = document.querySelectorAll('article, div[class*="article__body"]');
+      containers = document.querySelectorAll('section[class*="e53gh0t0"]');
+      if (containers.isEmpty) {
+        containers = document.querySelectorAll('article, div[class*="article__body"]');
+      }
     } else if (source == 'The Independent') {
       containers = document.querySelectorAll('div#main, div.body-content, div[class*="body-wrap"]');
     } else if (source == 'The Guardian') {
@@ -556,6 +559,13 @@ class FeedService {
             continue;
           }
           if (text.startsWith('Copyright ') || text.startsWith('© ')) {
+            continue;
+          }
+          if (source == 'The Economist' && (
+              (text.contains('sign up to our') && text.contains('newsletter')) ||
+              (text.startsWith('This article appeared in') && text.contains('print edition')) ||
+              text.startsWith('Discover stories from this section')
+          )) {
             continue;
           }
           if (!processedTexts.contains(text)) {
