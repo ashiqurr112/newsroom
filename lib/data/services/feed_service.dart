@@ -49,6 +49,7 @@ class FeedService {
             final linkElements = item.findElements('link');
             final link = linkElements.isEmpty ? '' : linkElements.first.innerText.trim();
             if (link.isEmpty) continue;
+            if (link.contains('/video/') || link.contains('/videos/')) continue;
             
             final descElements = item.findElements('description');
             final description = descElements.isEmpty ? '' : descElements.first.innerText.trim();
@@ -140,6 +141,7 @@ class FeedService {
               link = linkElements.first.getAttribute('href')?.trim() ?? '';
             }
             if (link.isEmpty) continue;
+            if (link.contains('/video/') || link.contains('/videos/')) continue;
             
             final contentElements = entry.findElements('content');
             final summaryElements = entry.findElements('summary');
