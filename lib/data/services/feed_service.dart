@@ -471,7 +471,7 @@ class FeedService {
             c.contains('byline') ||
             c.contains('author') ||
             c.contains('bio') ||
-            (c.contains('sidebar') && !c.contains('wrapper') && !c.contains('container')) ||
+            (c.contains('sidebar') && !c.contains('wrapper') && !c.contains('container') && !c.contains('no-sidebar')) ||
             c.contains('widget') ||
             (c.contains('comment') && !c.contains('commentary')) ||
             c.contains('related')) {
@@ -508,6 +508,11 @@ class FeedService {
       containers = document.querySelectorAll('div.article__abs, div.article__body');
     } else if (source == 'The Daily Star') {
       containers = document.querySelectorAll('div[class*="block-field-blocknodenewsbody"], span.clearfix.text-formatted');
+      if (containers.isEmpty) {
+        containers = document.querySelectorAll('article');
+      }
+    } else if (source == 'The Business Standard') {
+      containers = document.querySelectorAll('div.section-content, div[class*="field--name-body"]');
       if (containers.isEmpty) {
         containers = document.querySelectorAll('article');
       }
@@ -587,8 +592,8 @@ class FeedService {
           )) {
             continue;
           }
-          if (source == 'The Daily Star' && (
-              text.contains("Google News channel") ||
+          if ((source == 'The Daily Star' || source == 'The Business Standard') && (
+              text.toLowerCase().contains("google news channel") ||
               text == "Read More"
           )) {
             continue;
@@ -601,8 +606,8 @@ class FeedService {
           final text = elem.text.trim();
           if (text.isEmpty) continue;
           if (text.length > 100) continue;
-          if (source == 'The Daily Star' && (
-              text.contains("Google News channel") ||
+          if ((source == 'The Daily Star' || source == 'The Business Standard') && (
+              text.toLowerCase().contains("google news channel") ||
               text == "Read More"
           )) {
             continue;
@@ -623,7 +628,7 @@ class FeedService {
                 fullSrc = '${uri.scheme}://${uri.host}$src';
               } catch (_) {}
             }
-            if (fullSrc.contains('google_news.svg')) {
+            if (fullSrc.contains('google_news.svg') || fullSrc.contains('google_news') || fullSrc.contains('google-news')) {
               continue;
             }
             if (!processedImages.contains(fullSrc)) {

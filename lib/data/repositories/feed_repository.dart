@@ -48,6 +48,10 @@ class FeedRepository {
       'url': 'https://www.thedailystar.net/taxonomy/term/61/rss.xml',
       'region': 'South Asia',
     },
+    'The Business Standard': {
+      'url': 'https://www.tbsnews.net/thoughts/rss.xml',
+      'region': 'South Asia',
+    },
   };
 
   List<Article> _cachedArticles = [];
