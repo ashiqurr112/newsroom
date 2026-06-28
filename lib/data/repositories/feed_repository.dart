@@ -45,7 +45,7 @@ class FeedRepository {
       'region': 'South Asia',
     },
     'The Daily Star': {
-      'url': 'https://www.thedailystar.net/rss.xml',
+      'url': 'https://www.thedailystar.net/taxonomy/term/61/rss.xml',
       'region': 'South Asia',
     },
   };
