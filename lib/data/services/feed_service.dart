@@ -20,7 +20,15 @@ class FeedService {
 
   Future<List<Article>> fetchFeed(String sourceName, String url, String region) async {
     try {
-      final response = await _client.get(Uri.parse(url)).timeout(const Duration(seconds: 15));
+      final Map<String, String> headers = {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.103 Mobile Safari/537.36 Liskov',
+      };
+      
+      if (sourceName == 'Financial Express (BD)') {
+        return _fetchFinancialExpressBD(headers);
+      }
+      
+      final response = await _client.get(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final decodedBody = utf8.decode(response.bodyBytes, allowMalformed: true);
         return parseFeed(sourceName, decodedBody, region);
@@ -31,6 +39,84 @@ class FeedService {
       print('Exception fetching $sourceName: $e');
     }
     return [];
+  }
+
+  Future<List<Article>> _fetchFinancialExpressBD(Map<String, String> headers) async {
+    final List<Article> articles = [];
+    final urls = [
+      'https://today.thefinancialexpress.com.bd/editorial',
+      'https://today.thefinancialexpress.com.bd/views-opinion',
+    ];
+    
+    for (final url in urls) {
+      try {
+        final response = await _client.get(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 10));
+        if (response.statusCode != 200) {
+          print("Failed to fetch FE $url: ${response.statusCode}");
+          continue;
+        }
+        final doc = parse(utf8.decode(response.bodyBytes, allowMalformed: true));
+        final leftBar = doc.querySelector('.left-bar');
+        if (leftBar == null) {
+          print("No left-bar element on FE $url");
+          continue;
+        }
+        
+        final headings = leftBar.querySelectorAll('h2').map((e) => e.text.trim()).toList();
+        
+        final paragraphs = <String>[];
+        for (final p in leftBar.querySelectorAll('p')) {
+          final pText = p.text.trim();
+          final pParent = p.parent;
+          final pParentClass = pParent?.attributes['class'] ?? '';
+          if (pParentClass.contains('breadcrumb') || pParentClass.contains('head-section')) {
+            continue;
+          }
+          paragraphs.add(pText);
+        }
+        
+        final links = leftBar.querySelectorAll('a.readmore').map((e) => e.attributes['href'] ?? '').toList();
+        
+        final count = headings.length < links.length ? headings.length : links.length;
+        for (var i = 0; i < count; i++) {
+          final title = headings[i];
+          final link = links[i];
+          if (link.isEmpty) continue;
+          
+          final description = i < paragraphs.length ? paragraphs[i] : '';
+          
+          DateTime pubDate = DateTime.now();
+          final match = RegExp(r'-(\d+)$').firstMatch(link);
+          if (match != null) {
+            final timestamp = int.tryParse(match.group(1) ?? '');
+            if (timestamp != null) {
+              pubDate = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000, isUtc: true);
+            }
+          }
+          
+          final id = _generateId(link);
+          
+          articles.add(Article(
+            id: id,
+            title: title,
+            link: link,
+            description: description,
+            contentSnippet: description,
+            pubDate: pubDate,
+            author: 'Staff Writer',
+            source: 'Financial Express (BD)',
+            estimatedReadingTime: 2,
+            region: 'South Asia',
+          ));
+        }
+      } catch (e) {
+        print("Error scraping FE $url: $e");
+      }
+    }
+    
+    // Sort articles by publication date descending
+    articles.sort((a, b) => b.pubDate.compareTo(a.pubDate));
+    return articles;
   }
 
   List<Article> parseFeed(String sourceName, String xmlContent, String region) {
@@ -50,6 +136,21 @@ class FeedService {
             final link = linkElements.isEmpty ? '' : linkElements.first.innerText.trim();
             if (link.isEmpty) continue;
             if (link.contains('/video/') || link.contains('/videos/')) continue;
+            
+            var finalLink = link;
+            if (sourceName == 'Financial Express (BD)') {
+              final contentEncoded = item.findElements('content:encoded').firstOrNull?.innerText ?? '';
+              final canonicalMatch = RegExp(r'href="([^"]+)"\s+rel="canonical"|rel="canonical"\s+href="([^"]+)"').firstMatch(contentEncoded);
+              final canonicalUrl = canonicalMatch?.group(1) ?? canonicalMatch?.group(2);
+              
+              final linkToCheck = canonicalUrl ?? link;
+              if (!linkToCheck.contains('/editorial/') && !linkToCheck.contains('/views-opinion/')) {
+                continue;
+              }
+              if (canonicalUrl != null) {
+                finalLink = canonicalUrl;
+              }
+            }
             
             final descElements = item.findElements('description');
             final description = descElements.isEmpty ? '' : descElements.first.innerText.trim();
@@ -87,7 +188,7 @@ class FeedService {
             final readTime = (words / 200).ceil(); // ~200 WPM
             final estimatedReadingTime = readTime > 0 ? readTime : 1;
 
-            final id = _generateId(link);
+            final id = _generateId(finalLink);
 
             // Image extraction for RSS
             String? imageUrl;
@@ -113,7 +214,7 @@ class FeedService {
             articles.add(Article(
               id: id,
               title: title,
-              link: link,
+              link: finalLink,
               description: description,
               contentSnippet: snippet,
               pubDate: pubDate,
@@ -516,6 +617,8 @@ class FeedService {
       if (containers.isEmpty) {
         containers = document.querySelectorAll('article');
       }
+    } else if (source == 'Financial Express (BD)') {
+      containers = document.querySelectorAll('div.left-bar');
     }
 
     if (containers.isEmpty) {
@@ -598,6 +701,20 @@ class FeedService {
           )) {
             continue;
           }
+          if (source == 'Financial Express (BD)' && (
+              text.startsWith('/') ||
+              text.toLowerCase().contains('editorial') ||
+              text.toLowerCase().contains('opinion') ||
+              text.toLowerCase().contains('views')
+          ) && text.length < 25) {
+            continue;
+          }
+          if (source == 'Financial Express (BD)' && (
+              text.contains('00:00:00') ||
+              (text.contains(':') && text.contains(',') && (text.contains('2026') || text.contains('2025') || text.contains('2024')))
+          ) && text.length < 65) {
+            continue;
+          }
           if (!processedTexts.contains(text)) {
             processedTexts.add(text);
             blocks.add(ArticleContentBlock(type: 'text', value: text));
@@ -659,12 +776,17 @@ class FeedService {
     String? imageUrl;
     final ogImageMeta = document.querySelector('head > meta[property="og:image"]');
     if (ogImageMeta != null) {
-      imageUrl = ogImageMeta.attributes['content'];
+      imageUrl = ogImageMeta.attributes['content']?.trim();
     }
     if (imageUrl == null) {
       final twitterImageMeta = document.querySelector('head > meta[name="twitter:image"]');
       if (twitterImageMeta != null) {
-        imageUrl = twitterImageMeta.attributes['content'];
+        imageUrl = twitterImageMeta.attributes['content']?.trim();
+      }
+    }
+    if (imageUrl != null) {
+      if (imageUrl.endsWith('/uploads') || imageUrl.endsWith('/uploads/') || imageUrl.isEmpty) {
+        imageUrl = null;
       }
     }
     if (imageUrl != null && imageUrl.startsWith('/') && articleUrl != null && articleUrl.isNotEmpty) {

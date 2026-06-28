@@ -238,6 +238,44 @@ class _ReaderViewState extends State<ReaderView> with WidgetsBindingObserver {
               tooltip: 'Adjust Font Size',
               onPressed: () => _showFontSizeSheet(context, userVM),
             ),
+            // Save to Collections
+            IconButton(
+              icon: const Icon(Icons.folder_open_rounded),
+              tooltip: 'Save to Collections',
+              onPressed: () async {
+                final isSaved = userVM.savedArticles.any((a) => a.id == widget.article.id && a.isSaved);
+                if (!isSaved) {
+                  await userVM.saveArticle(widget.article);
+                }
+                if (!context.mounted) return;
+                _showAddToCollectionSheet(context, userVM, widget.article);
+              },
+            ),
+            // Bookmark
+            IconButton(
+              icon: Icon(userVM.savedArticles.any((a) => a.id == widget.article.id && a.isSaved) 
+                ? Icons.bookmark_rounded 
+                : Icons.bookmark_outline_rounded),
+              tooltip: userVM.savedArticles.any((a) => a.id == widget.article.id && a.isSaved) 
+                ? 'Remove from Saved' 
+                : 'Save Article',
+              onPressed: () async {
+                final isSaved = userVM.savedArticles.any((a) => a.id == widget.article.id && a.isSaved);
+                if (isSaved) {
+                  await userVM.unsaveArticle(widget.article.id);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Article removed from bookmarks')),
+                  );
+                } else {
+                  await userVM.saveArticle(widget.article);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Article saved to bookmarks')),
+                  );
+                }
+              },
+            ),
             // Theme Switcher Overrides
             IconButton(
               icon: Icon(
@@ -441,6 +479,7 @@ class _ReaderViewState extends State<ReaderView> with WidgetsBindingObserver {
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontSize: userVM.fontSize + 2,
                           fontWeight: FontWeight.bold,
+                          fontFamily: userVM.fontFamily,
                           height: 1.3,
                         ),
                       ),
@@ -484,6 +523,7 @@ class _ReaderViewState extends State<ReaderView> with WidgetsBindingObserver {
                               paragraphText,
                               style: theme.textTheme.bodyLarge?.copyWith(
                                 fontSize: userVM.fontSize,
+                                fontFamily: userVM.fontFamily,
                               ),
                             ),
                             if (hasNote) ...[
@@ -585,6 +625,17 @@ class _ReaderViewState extends State<ReaderView> with WidgetsBindingObserver {
                     ],
                   ),
                   const SizedBox(height: 8),
+                  const Text('Font Style'),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _fontButton(context, userVM, 'serif', 'Serif'),
+                      _fontButton(context, userVM, 'sans-serif', 'Sans-Serif'),
+                      _fontButton(context, userVM, 'monospace', 'Monospace'),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
                   const Text('Default Global Theme'),
                   const SizedBox(height: 12),
                   Row(
@@ -621,6 +672,179 @@ class _ReaderViewState extends State<ReaderView> with WidgetsBindingObserver {
         label,
         style: TextStyle(color: text, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
       ),
+    );
+  }
+
+  Widget _fontButton(BuildContext context, UserViewModel userVM, String family, String label) {
+    final isSelected = userVM.fontFamily == family;
+    final theme = Theme.of(context);
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        side: BorderSide(
+          color: isSelected ? theme.primaryColor : Colors.grey.shade300,
+          width: isSelected ? 2.5 : 1,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      onPressed: () => userVM.setFontFamily(family),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: family,
+          color: theme.textTheme.bodyLarge?.color,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+    );
+  }
+
+  void _showAddToCollectionSheet(BuildContext context, UserViewModel userVM, Article article) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final theme = Theme.of(context);
+            final collections = userVM.collections;
+            
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Save to Collections',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _showCreateCollectionDialog(context, userVM, article);
+                        },
+                        child: const Text('+ New Collection'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (collections.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      child: Center(
+                        child: Text(
+                          'No collections created yet.',
+                          style: TextStyle(color: theme.hintColor),
+                        ),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: collections.length,
+                        itemBuilder: (context, index) {
+                          final col = collections[index];
+                          final contains = col.articleIds.contains(article.id);
+                          
+                          return CheckboxListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Row(
+                              children: [
+                                Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    color: Color(col.color),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(col.name),
+                              ],
+                            ),
+                            value: contains,
+                            onChanged: (bool? checked) async {
+                              if (checked == true) {
+                                await userVM.addArticleToCollection(col.id, article.id);
+                              } else {
+                                await userVM.removeArticleFromCollection(col.id, article.id);
+                              }
+                              setModalState(() {});
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Done'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showCreateCollectionDialog(BuildContext context, UserViewModel userVM, Article article) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('New Collection'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: 'Enter collection name',
+            ),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final name = controller.text.trim();
+                if (name.isNotEmpty) {
+                  await userVM.createCollection(name, 0xFF2196F3);
+                  if (!context.mounted) return;
+                  Navigator.pop(context);
+                  final newCol = userVM.collections.firstWhere((c) => c.name == name);
+                  await userVM.addArticleToCollection(newCol.id, article.id);
+                  if (!context.mounted) return;
+                  _showAddToCollectionSheet(context, userVM, article);
+                }
+              },
+              child: const Text('Create'),
+            ),
+          ],
+        );
+      },
     );
   }
 

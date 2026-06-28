@@ -19,7 +19,7 @@ class DiscoveryView extends StatelessWidget {
 
   // Group outlets by general editorial stance to pair contrasting views
   static const List<String> _groupA = ['The Times', 'The Economist']; // Generally center-right/libertarian/conservative leaning
-  static const List<String> _groupB = ['The Guardian', 'The New York Times', 'Al Jazeera', 'The Independent', 'The Conversation', 'The Daily Star', 'The Business Standard']; // Generally center-left/liberal/progressive leaning
+  static const List<String> _groupB = ['The Guardian', 'The New York Times', 'Al Jazeera', 'The Independent', 'The Conversation', 'The Daily Star', 'The Business Standard', 'Financial Express (BD)']; // Generally center-left/liberal/progressive leaning
 
   @override
   Widget build(BuildContext context) {

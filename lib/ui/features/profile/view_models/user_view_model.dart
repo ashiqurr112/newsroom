@@ -10,6 +10,7 @@ class UserViewModel extends ChangeNotifier {
   final UserRepository userRepository;
   String _themeMode = 'light'; // 'light', 'sepia', 'dark'
   double _fontSize = 18.0;
+  String _fontFamily = 'serif';
 
   UserViewModel({required this.userRepository}) {
     _loadPreferences();
@@ -21,12 +22,14 @@ class UserViewModel extends ChangeNotifier {
   List<Highlight> get highlights => userRepository.highlights;
   String get themeMode => _themeMode;
   double get fontSize => _fontSize;
+  String get fontFamily => _fontFamily;
 
   Future<void> _loadPreferences() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       _themeMode = prefs.getString('theme_mode') ?? 'light';
       _fontSize = prefs.getDouble('font_size') ?? 18.0;
+      _fontFamily = prefs.getString('font_family') ?? 'serif';
       notifyListeners();
     } catch (e) {
       print('Error loading preferences: $e');
@@ -52,6 +55,17 @@ class UserViewModel extends ChangeNotifier {
       await prefs.setDouble('font_size', size);
     } catch (e) {
       print('Error saving font size: $e');
+    }
+  }
+
+  Future<void> setFontFamily(String family) async {
+    _fontFamily = family;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('font_family', family);
+    } catch (e) {
+      print('Error saving font family: $e');
     }
   }
 

@@ -52,6 +52,10 @@ class FeedRepository {
       'url': 'https://www.tbsnews.net/thoughts/rss.xml',
       'region': 'South Asia',
     },
+    'Financial Express (BD)': {
+      'url': 'https://today.thefinancialexpress.com.bd/feed',
+      'region': 'South Asia',
+    },
   };
 
   List<Article> _cachedArticles = [];
